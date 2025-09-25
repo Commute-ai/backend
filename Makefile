@@ -115,40 +115,17 @@ docker-build:
 
 docker-up:
 	@echo "🐳 Starting with Docker Compose..."
-	docker-compose up -d
+	docker compose up -d
 
 docker-down:
 	@echo "🐳 Stopping Docker Compose..."
-	docker-compose down
+	docker compose down
 
 docker-logs:
 	@echo "📋 Showing Docker logs..."
-	docker-compose logs -f
-
-# Quick health check
-ping:
-	@echo "🏓 Testing ping endpoint..."
-	curl -s http://$(HOST):$(PORT)/ping || echo "❌ Server not responding"
-
-health:
-	@echo "🏥 Testing health endpoint..."
-	curl -s http://$(HOST):$(PORT)/api/v1/health/health | python -m json.tool || echo "❌ Health check failed"
+	docker compose logs -f
 
 # Create requirements files
 freeze:
 	@echo "📦 Updating requirements.txt..."
 	$(PIP) freeze > requirements.txt
-
-# Show project info
-info:
-	@echo "📊 Project Information:"
-	@echo "  Python version: $$($(PYTHON) --version)"
-	@echo "  Virtual env: $(VENV)"
-	@echo "  Port: $(PORT)"
-	@echo "  Host: $(HOST)"
-	@echo "  Project: Commute.ai Backend"
-
-# Show running processes
-ps:
-	@echo "🔍 FastAPI processes:"
-	@ps aux | grep uvicorn | grep -v grep || echo "No FastAPI processes running"
