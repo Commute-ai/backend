@@ -26,3 +26,6 @@ typing-inspection==0.4.1
 typing_extensions==4.15.0
 uvicorn==0.37.0
 virtualenv==20.34.0
+passlib[bcrypt]==1.7.4
+pytest==8.4.2
+bcrypt==4.3.0
