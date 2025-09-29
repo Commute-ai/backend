@@ -1,4 +1,4 @@
-from typing import List
+import secrets
 
 from pydantic_settings import BaseSettings
 
@@ -9,7 +9,12 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
-    class Config:
+    # JWT Settings
+    SECRET_KEY: str = secrets.token_urlsafe(32)
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    class ConfigDict:
         env_file = ".env"
         extra = "ignore"
 
