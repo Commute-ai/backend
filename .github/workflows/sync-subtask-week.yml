@@ -3,8 +3,6 @@ name: Sync Subtask Week from Parent
 on:
   issues:
     types: [opened, edited]
-  schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes
 
 permissions:
   issues: write
