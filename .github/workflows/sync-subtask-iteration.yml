@@ -11,14 +11,19 @@ permissions:
 jobs:
   sync-iteration:
     runs-on: ubuntu-latest
+    if: |
+      github.repository == 'Commute-ai/ui' || 
+      github.repository == 'Commute-ai/backend' || 
+      github.repository == 'Commute-ai/ai-agents'
+    
     steps:
       - name: Sync iteration from parent issue
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.ORG_PROJECT_TOKEN }}
+          github-token: ${{ secrets.ORG_PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const ORG = 'Commute-ai';
-            const PROJECT_NUM = 1;
+            const PROJECT_NUM = 1; // Update with your project number
             
             // Get issue node ID
             const issue = await github.rest.issues.get({
@@ -73,13 +78,22 @@ jobs:
             
             // Query 2: Get project items for both parent and child
             const projectQuery = `
-              query($org: String!, $projNum: Int!, $parentId: ID!, $childId: ID!) {
+              query($org: String!, $projNum: Int!) {
                 organization(login: $org) {
                   projectV2(number: $projNum) {
                     id
-                    parentItem: items(first: 1, filterBy: {contentId: $parentId}) {
+                    items(first: 100) {
                       nodes {
                         id
+                        content {
+                          ... on Issue {
+                            id
+                            number
+                            repository {
+                              name
+                            }
+                          }
+                        }
                         fieldValues(first: 20) {
                           nodes {
                             ... on ProjectV2ItemFieldIterationValue {
@@ -96,11 +110,6 @@ jobs:
                         }
                       }
                     }
-                    childItem: items(first: 1, filterBy: {contentId: $childId}) {
-                      nodes {
-                        id
-                      }
-                    }
                   }
                 }
               }
@@ -108,14 +117,15 @@ jobs:
             
             const projectData = await github.graphql(projectQuery, {
               org: ORG,
-              projNum: PROJECT_NUM,
-              parentId: parent.id,
-              childId: issueNodeId
+              projNum: PROJECT_NUM
             });
             
             const project = projectData.organization.projectV2;
-            const parentItem = project.parentItem.nodes[0];
-            const childItem = project.childItem.nodes[0];
+            const allItems = project.items.nodes;
+            
+            // Find parent and child items
+            const parentItem = allItems.find(item => item.content?.id === parent.id);
+            const childItem = allItems.find(item => item.content?.id === issueNodeId);
             
             if (!parentItem) {
               console.log('❌ Parent issue not in project board');
@@ -163,3 +173,11 @@ jobs:
             });
             
             console.log(`✅ Synced iteration to: ${parentIteration.title}`);
+            
+            // Comment on issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🤖 Automatically synced iteration to **${parentIteration.title}** from parent issue.`
+            });
