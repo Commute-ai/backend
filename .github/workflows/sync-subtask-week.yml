@@ -1,4 +1,4 @@
-name: Sync Subtask Iteration from Parent
+name: Sync Subtask Week from Parent
 
 on:
   issues:
@@ -11,10 +11,6 @@ permissions:
 jobs:
   sync-iteration:
     runs-on: ubuntu-latest
-    if: |
-      github.repository == 'Commute-ai/ui' || 
-      github.repository == 'Commute-ai/backend' || 
-      github.repository == 'Commute-ai/ai-agents'
     
     steps:
       - name: Sync iteration from parent issue
@@ -139,7 +135,7 @@ jobs:
             
             // Get parent's iteration
             const parentIteration = parentItem.fieldValues.nodes.find(
-              fv => fv.field?.name === 'Iteration' && fv.iterationId
+              fv => fv.field?.name === 'Week' && fv.iterationId
             );
             
             if (!parentIteration) {
@@ -173,11 +169,3 @@ jobs:
             });
             
             console.log(`✅ Synced iteration to: ${parentIteration.title}`);
-            
-            // Comment on issue
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `🤖 Automatically synced iteration to **${parentIteration.title}** from parent issue.`
-            });
