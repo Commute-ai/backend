@@ -23,6 +23,7 @@ def test_register_user(db: Session, client: TestClient):
         "password": "testpassword123",
     }
 
+
     response = client.post("/api/v1/auth/register", json=user_data)
 
     assert response.status_code == 200

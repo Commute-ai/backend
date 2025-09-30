@@ -1,7 +1,7 @@
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-from tests.db.test_model import TestModel
+from tests.db.test_model import SampleModel
 
 
 def test_database_connection(db: Session):
@@ -26,11 +26,11 @@ def test_crud_operations(db: Session):
     """
     Test basic CRUD operations on the database
     """
-    test_record = TestModel(name="test_name", value="test_value")
+    test_record = SampleModel(name="test_name", value="test_value")
     db.add(test_record)
     db.commit()
 
-    retrieved = db.query(TestModel).filter_by(name="test_name").first()
+    retrieved = db.query(SampleModel).filter_by(name="test_name").first()
     assert retrieved is not None
     assert retrieved.value == "test_value"
 
@@ -42,5 +42,5 @@ def test_crud_operations(db: Session):
     db.delete(retrieved)
     db.commit()
 
-    check = db.query(TestModel).filter_by(name="test_name").first()
+    check = db.query(SampleModel).filter_by(name="test_name").first()
     assert check is None
