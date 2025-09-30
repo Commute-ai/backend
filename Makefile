@@ -31,7 +31,7 @@ setup:
 	@echo "🚀 Setting up Commute.ai backend..."
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install -r requirements-dev.txt
 	@echo "✅ Setup complete! Run 'make dev' to start development server"
 
 # Install dependencies
@@ -124,8 +124,3 @@ docker-down:
 docker-logs:
 	@echo "📋 Showing Docker logs..."
 	docker compose logs -f
-
-# Create requirements files
-freeze:
-	@echo "📦 Updating requirements.txt..."
-	$(PIP) freeze > requirements.txt
