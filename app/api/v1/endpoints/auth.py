@@ -42,7 +42,7 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> A
     db.commit()
     db.refresh(user)
 
-    return {"access_token": get_access_token(user.id), "token_type": "bearer"}
+    return {"access_token": get_access_token(int(user.id)), "token_type": "bearer"}
 
 
 @router.post("/login", response_model=Token)
@@ -54,11 +54,11 @@ async def login_for_access_token(
     """
     user = db.query(User).filter(User.email == form_data.username).first()
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not verify_password(form_data.password, str(user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return {"access_token": get_access_token(user.id), "token_type": "bearer"}
+    return {"access_token": get_access_token(int(user.id)), "token_type": "bearer"}

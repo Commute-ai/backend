@@ -23,7 +23,6 @@ def test_register_user(db: Session, client: TestClient):
         "password": "testpassword123",
     }
 
-
     response = client.post("/api/v1/auth/register", json=user_data)
 
     assert response.status_code == 200
@@ -68,9 +67,7 @@ def test_login_success(db: Session, client: TestClient):
     db.add(db_user)
     db.commit()
 
-    response = client.post(
-        "/api/v1/auth/login", data={"username": email, "password": password}
-    )
+    response = client.post("/api/v1/auth/login", data={"username": email, "password": password})
 
     assert response.status_code == 200
     data = response.json()

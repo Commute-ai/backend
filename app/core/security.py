@@ -45,36 +45,26 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(
-    subject: Union[str, int], expires_delta: Optional[timedelta] = None
-) -> str:
+def create_access_token(subject: Union[str, int], expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT token with the provided subject (typically user ID)
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(
-        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
-    )
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
-def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
-) -> User:
+def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
     """
     Decode JWT token and return the current user.
     """
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
     except (jwt.JWTError, ValidationError):
         raise HTTPException(
@@ -82,7 +72,7 @@ def get_current_user(
             detail="Could not validate credentials",
         )
 
-    user = db.query(User).filter(User.id == int(token_data.sub)).first()
+    user = db.query(User).filter(User.id == int(token_data.sub)).first()  # type: ignore[arg-type]
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
