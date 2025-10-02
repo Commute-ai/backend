@@ -27,15 +27,15 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> A
     """
     Register a new user.
     """
-    user = db.query(User).filter(User.email == user_in.email).first()
+    user = db.query(User).filter(User.username == user_in.username).first()
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this email already exists",
+            detail="A user with this username already exists",
         )
 
     user = User(
-        email=user_in.email,
+        username=user_in.username,
         hashed_password=get_password_hash(user_in.password),
     )
     db.add(user)
@@ -52,12 +52,12 @@ async def login_for_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
-    user = db.query(User).filter(User.email == form_data.username).first()
+    user = db.query(User).filter(User.username == form_data.username).first()
 
     if not user or not verify_password(form_data.password, str(user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

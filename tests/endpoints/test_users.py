@@ -8,9 +8,9 @@ from app.models.user import User
 
 def create_test_user(db: Session):
     """Helper function to create a test user and return its data"""
-    email = "testuser@example.com"
+    username = "testuser"
     user = User(
-        email=email,
+        username=username,
         hashed_password=get_password_hash("testpassword"),
     )
     db.add(user)
@@ -45,7 +45,7 @@ def test_read_current_user(db: Session, client: TestClient):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] == user.email
+    assert data["username"] == user.username
     assert data["id"] == user.id
 
 

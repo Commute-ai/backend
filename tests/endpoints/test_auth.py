@@ -19,7 +19,7 @@ def test_create_user_table(db: Session):
 def test_register_user(db: Session, client: TestClient):
     """Test user registration endpoint"""
     user_data = {
-        "email": "testregister@example.com",
+        "username": "testuser",
         "password": "testpassword123",
     }
 
@@ -30,23 +30,23 @@ def test_register_user(db: Session, client: TestClient):
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
-    db_user = db.query(User).filter(User.email == user_data["email"]).first()
+    db_user = db.query(User).filter(User.username == user_data["username"]).first()
     assert db_user is not None
-    assert db_user.email == user_data["email"]
+    assert db_user.username == user_data["username"]
 
 
 def test_register_existing_user(db: Session, client: TestClient):
     """Test registering a user that already exists"""
-    email = "testexisting@example.com"
+    username = "testexisting"
     db_user = User(
-        email=email,
+        username=username,
         hashed_password=get_password_hash("testpassword123"),
     )
     db.add(db_user)
     db.commit()
 
     user_data = {
-        "email": email,
+        "username": username,
         "password": "anotherpassword",
     }
 
@@ -58,16 +58,18 @@ def test_register_existing_user(db: Session, client: TestClient):
 
 def test_login_success(db: Session, client: TestClient):
     """Test successful login and token retrieval"""
-    email = "testlogin@example.com"
+    username = "testlogin"
     password = "correctpassword"
     db_user = User(
-        email=email,
+        username=username,
         hashed_password=get_password_hash(password),
     )
     db.add(db_user)
     db.commit()
 
-    response = client.post("/api/v1/auth/login", data={"username": email, "password": password})
+    response = client.post(
+        "/api/v1/auth/login", data={"username": username, "password": password}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -77,17 +79,17 @@ def test_login_success(db: Session, client: TestClient):
 
 def test_login_incorrect_password(db: Session, client: TestClient):
     """Test login with incorrect password"""
-    email = "wrongpassword@example.com"
+    username = "testuser"
     db_user = User(
-        email=email,
+        username=username,
         hashed_password=get_password_hash("correctpassword"),
     )
     db.add(db_user)
     db.commit()
 
     response = client.post(
-        "/api/v1/auth/login", data={"username": email, "password": "wrongpassword"}
+        "/api/v1/auth/login", data={"username": username, "password": "wrongpassword"}
     )
 
     assert response.status_code == 401
-    assert "incorrect email or password" in response.json()["detail"].lower()
+    assert "incorrect username or password" in response.json()["detail"].lower()

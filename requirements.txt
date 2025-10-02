@@ -15,7 +15,6 @@ MarkupSafe==3.0.2
 nodeenv==1.9.1
 platformdirs==4.4.0
 pydantic==2.11.9
-pydantic[email]==2.11.9
 pydantic-settings==2.10.1
 pydantic_core==2.33.2
 python-dotenv==1.1.1
