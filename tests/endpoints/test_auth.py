@@ -67,9 +67,7 @@ def test_login_success(db: Session, client: TestClient):
     db.add(db_user)
     db.commit()
 
-    response = client.post(
-        "/api/v1/auth/login", data={"username": username, "password": password}
-    )
+    response = client.post("/api/v1/auth/login", data={"username": username, "password": password})
 
     assert response.status_code == 200
     data = response.json()
