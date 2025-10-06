@@ -34,6 +34,18 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> A
             detail="A user with this username already exists",
         )
 
+    if len(user_in.password) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 4 characters",
+        )
+
+    if len(user_in.username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username must be at least 3 characters",
+        )
+
     user = User(
         username=user_in.username,
         hashed_password=get_password_hash(user_in.password),
