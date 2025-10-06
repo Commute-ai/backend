@@ -1,22 +1,23 @@
 # Commute.ai Backend Makefile
 
-.PHONY: help install dev start test clean lint format check docker-build docker-up docker-down setup
+.PHONY: help install dev start test clean lint format check docker-build docker-db-up docker-up docker-down setup
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  setup      - Initial project setup (create venv, install deps)"
-	@echo "  install    - Install dependencies"
-	@echo "  dev        - Run development server with auto-reload"
-	@echo "  start      - Run production server"
-	@echo "  test       - Run tests"
-	@echo "  lint       - Run linting"
-	@echo "  format     - Format code with black"
-	@echo "  check      - Run all checks (lint + test)"
-	@echo "  clean      - Clean up generated files"
-	@echo "  docker-build - Build Docker image"
-	@echo "  docker-up  - Start with Docker Compose"
-	@echo "  docker-down - Stop Docker Compose"
+	@echo "  setup         - Initial project setup (create venv, install deps)"
+	@echo "  install       - Install dependencies"
+	@echo "  dev           - Run development server with auto-reload"
+	@echo "  start         - Run production server"
+	@echo "  test          - Run tests"
+	@echo "  lint          - Run linting"
+	@echo "  format        - Format code with black"
+	@echo "  check         - Run all checks (lint + test)"
+	@echo "  clean         - Clean up generated files"
+	@echo "  docker-build  - Build Docker image"
+	@echo "  docker-db-up  - Start only the db with Docker Compose"
+	@echo "  docker-up     - Start with Docker Compose"
+	@echo "  docker-down   - Stop Docker Compose"
 
 # Variables
 PYTHON := python3
@@ -109,6 +110,10 @@ db-reset:
 	$(PYTHON_VENV) -m alembic upgrade head
 
 # Docker commands
+docker-db-up:
+	@echo "🐳 Starting database with Docker Compose..."
+	docker compose up -d postgres
+
 docker-build:
 	@echo "🐳 Building Docker image..."
 	docker build -t commute-ai-backend .
