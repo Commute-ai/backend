@@ -1,19 +1,26 @@
 services:
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: commute-ai-backend
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://commute_user:commute_pass@postgres:5432/commute_db
       - PYTHONPATH=/app
+      - ENVIRONMENT=development
     depends_on:
       - postgres
     volumes:
       - .:/app
+      - /app/__pycache__
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
 
   postgres:
     image: postgres:17-alpine
+    container_name: commute-ai-postgres
     environment:
       - POSTGRES_DB=commute_db
       - POSTGRES_USER=commute_user
