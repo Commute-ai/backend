@@ -6,7 +6,7 @@ Pydantic models for representing transit routes and itineraries.
 
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,14 @@ class TransportMode(str, Enum):
     FERRY = "FERRY"
 
 
+class Route(BaseModel):
+    """Route information for a leg of the journey."""
+
+    short_name: str = Field(..., description="Short name of the route, e.g., bus number")
+    long_name: str = Field(..., description="Long name of the route, e.g., full route name")
+    description: Optional[str] = Field(..., description="Description of the route")
+
+
 class Leg(BaseModel):
     """A single segment of a journey."""
 
@@ -36,6 +44,7 @@ class Leg(BaseModel):
     distance: float = Field(..., description="Distance in meters")
     from_place: Place
     to_place: Place
+    route: Optional[Route] = None
 
 
 class Itinerary(BaseModel):
