@@ -8,16 +8,21 @@ API Endpoint: https://api.digitransit.fi/routing/v2/hsl/gtfs/v1
 Documentation: https://digitransit.fi/en/developers/apis/1-routing-api/
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from gql import Client, gql
+from gql.transport.exceptions import TransportQueryError
 from gql.transport.httpx import HTTPXAsyncTransport
+from httpx import HTTPError, TimeoutException
 
 from app.core.config import settings
 from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
+
+logger = logging.getLogger(__name__)
 
 # Basic itinerary query
 # This is the main query for fetching routes between two points
@@ -92,6 +97,22 @@ query GetItinerary(
 """
 
 
+class RoutingServiceError(Exception):
+    """Base exception for routing service errors."""
+
+
+class RoutingAPIError(RoutingServiceError):
+    """Raised when the HSL API returns an error."""
+
+
+class RoutingNetworkError(RoutingServiceError):
+    """Raised when network communication fails."""
+
+
+class RoutingDataError(RoutingServiceError):
+    """Raised when response data cannot be parsed."""
+
+
 class RoutingService:
     """
     Service for interacting with HSL (Helsinki Regional Transport) Routing API.
@@ -105,7 +126,7 @@ class RoutingService:
         Initialize HSL service with GraphQL client.
         """
         self._api_url = settings.HSL_ROUTING_API_URL
-        self._subscription_key = settings.HSL_SUBSCRIPTION_KEY
+        self._subscription_key = ""
         self._client: Optional[Client] = None
 
     def _get_client(self) -> Client:
@@ -162,12 +183,32 @@ class RoutingService:
             "earliestDeparture": earliest_departure.isoformat(),
         }
 
-        client = self._get_client()
-        query = gql(ITINERARY_QUERY)
+        try:
+            client = self._get_client()
+            query = gql(ITINERARY_QUERY)
 
-        result = await client.execute_async(query, variable_values=variables)
+            result = await client.execute_async(query, variable_values=variables)
 
-        return self._parse_itinaries(result)
+            return self._parse_itinaries(result)
+        except TransportQueryError as e:
+            logger.error("HSL API returned an error: %s", str(e))
+            raise RoutingAPIError(f"HSL API error: {str(e)}") from e
+
+        except TimeoutException as e:
+            logger.error("Request to HSL API timed out")
+            raise RoutingNetworkError("Request timed out") from e
+
+        except HTTPError as e:
+            logger.error("Network error while contacting HSL API: %s", str(e))
+            raise RoutingNetworkError(f"Network error: {str(e)}") from e
+
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error("Failed to parse HSL API response: %s", str(e))
+            raise RoutingDataError(f"Invalid response data: {str(e)}") from e
+
+        except Exception as e:
+            logger.exception("Unexpected error in routing service")
+            raise RoutingServiceError(f"Unexpected error: {str(e)}") from e
 
     def _parse_itinaries(self, data: Dict) -> List[Itinerary]:
         """
