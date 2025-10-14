@@ -3,9 +3,9 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import app.utils.logger
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.utils import logger as _  # noqa: F401 - Import to configure logging
 
 logger = logging.getLogger(__name__)
 

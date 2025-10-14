@@ -31,10 +31,26 @@ query GetItinerary(
     $earliestDeparture: OffsetDateTime!
 ) {
     planConnection(
-        origin: { location: {coordinate: { latitude: $originLat, longitude: $originLon } } }
-        destination: { location: {coordinate: { latitude: $destinationLat, longitude: $destinationLon } } }
+        origin: {
+            location: {
+                coordinate: {
+                    latitude: $originLat,
+                    longitude: $originLon
+                }
+            }
+        }
+        destination: {
+            location: {
+                coordinate: {
+                    latitude: $destinationLat,
+                    longitude: $destinationLon
+                }
+            }
+        }
         first: $first
-        dateTime: { earliestDeparture: $earliestDeparture }
+        dateTime: {
+            earliestDeparture: $earliestDeparture
+        }
     ) {
         edges {
             node {
