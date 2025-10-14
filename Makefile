@@ -65,6 +65,8 @@ lint:
 	@echo "🔍 Linting code..."
 	$(PYTHON_VENV) -m flake8 app/ tests/
 	$(PYTHON_VENV) -m mypy app/
+	$(PYTHON_VENV) -m black --check app/ tests/
+	$(PYTHON_VENV) -m isort --check-only app/ tests/
 
 # Format code
 format:
