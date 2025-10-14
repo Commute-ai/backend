@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # HSL API Settings
+    HSL_ROUTING_API_URL: str = "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1"
+    HSL_SUBSCRIPTION_KEY: str = ""
+
     class ConfigDict:
         env_file = ".env"
         extra = "ignore"
