@@ -19,6 +19,7 @@ from httpx import HTTPError, TimeoutException
 
 from app.core.config import settings
 from app.schemas.geo import Coordinates
+from app.schemas.health import ServiceHealth
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
 
@@ -266,6 +267,24 @@ class RoutingService:
             long_name=data["longName"],
             description=data.get("desc"),
         )
+
+    async def health_check(self) -> ServiceHealth:
+        """
+        Perform a health check of the routing service by querying a simple itinerary.
+
+        Returns:
+            ServiceHealth indicating the health status of the routing service.
+        """
+        try:
+            origin = Coordinates(latitude=60.192059, longitude=24.945831)  # Helsinki
+            destination = Coordinates(latitude=60.169856, longitude=24.938379)  # Helsinki Cathedral
+
+            await self.get_itinaries(origin, destination, first=1)
+
+            return ServiceHealth(healthy=True, message="Routing service is healthy")
+        except RoutingServiceError as e:
+            logger.error("Routing service health check failed: %s", str(e))
+            return ServiceHealth(healthy=False, message=f"Routing service error: {str(e)}")
 
     async def close(self):
         """
