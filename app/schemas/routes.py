@@ -24,7 +24,7 @@ class RouteSearchRequest(BaseModel):
             "Earliest departure time (ISO format). " "Defaults to current time if not provided."
         ),
     )
-    num_itineraries: Optional[int] = Field(
+    num_itineraries: int = Field(
         default=3,
         ge=1,
         le=10,
