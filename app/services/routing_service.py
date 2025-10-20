@@ -126,7 +126,7 @@ class RoutingService:
         Initialize HSL service with GraphQL client.
         """
         self._api_url = settings.HSL_ROUTING_API_URL
-        self._subscription_key = ""
+        self._subscription_key = settings.HSL_SUBSCRIPTION_KEY
         self._client: Optional[Client] = None
 
     def _get_client(self) -> Client:
