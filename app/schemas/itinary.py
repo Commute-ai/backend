@@ -45,6 +45,9 @@ class Leg(BaseModel):
     from_place: Place
     to_place: Place
     route: Optional[Route] = None
+    ai_insight: Optional[str] = Field(
+        default=None, description="AI-generated insight about this leg of the journey"
+    )
 
 
 class Itinerary(BaseModel):
