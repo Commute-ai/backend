@@ -1,0 +1,258 @@
+"""
+Unit tests for AI agents service.
+"""
+
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
+
+from app.schemas.geo import Coordinates
+from app.schemas.itinary import Leg, Route, TransportMode
+from app.schemas.location import Place
+from app.services.ai_agents_service import AiAgentsService
+
+
+@pytest.fixture
+def ai_service():
+    """Create an AI agents service instance for testing."""
+    return AiAgentsService()
+
+
+@pytest.fixture
+def sample_leg():
+    """Create a sample leg for testing."""
+    return Leg(
+        mode=TransportMode.BUS,
+        start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2025, 10, 14, 10, 30, 0, tzinfo=timezone.utc),
+        duration=1800,
+        distance=10000.0,
+        from_place=Place(
+            coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+            name="Helsinki Central",
+        ),
+        to_place=Place(
+            coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+            name="Espoo Central",
+        ),
+        route=Route(
+            short_name="550",
+            long_name="Helsinki - Espoo",
+            description="Express bus service",
+        ),
+    )
+
+
+@pytest.fixture
+def sample_walk_leg():
+    """Create a sample walking leg for testing."""
+    return Leg(
+        mode=TransportMode.WALK,
+        start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+        duration=600,
+        distance=500.0,
+        from_place=Place(
+            coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+            name="Origin",
+        ),
+        to_place=Place(
+            coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+            name="Bus Stop",
+        ),
+        route=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_success(ai_service, sample_leg):
+    """Test successful AI insight retrieval."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "insight": "This bus is usually on time and provides a comfortable ride."
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        assert insight == "This bus is usually on time and provides a comfortable ride."
+        mock_client.post.assert_called_once()
+
+        # Verify the payload structure
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs["json"]
+        assert payload["mode"] == "BUS"
+        assert payload["duration"] == 1800
+        assert payload["distance"] == 10000.0
+        assert payload["from_place"] == "Helsinki Central"
+        assert payload["to_place"] == "Espoo Central"
+        assert payload["route"]["short_name"] == "550"
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_walk_leg(ai_service, sample_walk_leg):
+    """Test AI insight retrieval for walking leg (no route info)."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"insight": "Short walk, well-lit path."}
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_walk_leg)
+
+        assert insight == "Short walk, well-lit path."
+
+        # Verify payload does not include route info for walking
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs["json"]
+        assert payload["mode"] == "WALK"
+        assert "route" not in payload
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_non_200_response(ai_service, sample_leg):
+    """Test handling of non-200 response from AI service."""
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        # Should return None on error
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_timeout(ai_service, sample_leg):
+    """Test handling of timeout from AI service."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        # Should return None on timeout
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_network_error(ai_service, sample_leg):
+    """Test handling of network errors from AI service."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("Network error"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        # Should return None on network error
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_missing_insight_in_response(ai_service, sample_leg):
+    """Test handling when AI service response doesn't include insight."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {}  # Missing 'insight' key
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        # Should return None when insight is missing
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_route_insight_exception(ai_service, sample_leg):
+    """Test handling of unexpected exceptions."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=Exception("Unexpected error"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_route_insight(sample_leg)
+
+        # Should gracefully handle exception and return None
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_health_check_success(ai_service):
+    """Test successful health check."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        health = await ai_service.health_check()
+
+        assert health.healthy is True
+        assert "responding" in health.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_health_check_failure(ai_service):
+    """Test health check with non-200 status."""
+    mock_response = MagicMock()
+    mock_response.status_code = 503
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        health = await ai_service.health_check()
+
+        assert health.healthy is False
+        assert "503" in health.message
+
+
+@pytest.mark.asyncio
+async def test_health_check_timeout(ai_service):
+    """Test health check with timeout."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_get_client.return_value = mock_client
+
+        health = await ai_service.health_check()
+
+        assert health.healthy is False
+        assert "timed out" in health.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_health_check_exception(ai_service):
+    """Test health check with exception."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Connection error"))
+        mock_get_client.return_value = mock_client
+
+        health = await ai_service.health_check()
+
+        assert health.healthy is False
+        assert "failed" in health.message.lower()

@@ -5,6 +5,7 @@ import httpx
 
 from app.core.config import settings
 from app.schemas.health import ServiceHealth
+from app.schemas.itinary import Leg
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,54 @@ class AiAgentsService:
                 healthy=False,
                 message=f"AI-agents API check failed: {str(e)}",
             )
+
+    async def get_route_insight(self, leg: Leg) -> Optional[str]:
+        """
+        Get AI-generated insight for a specific leg of the journey.
+
+        Args:
+            leg: The leg object containing journey segment information
+
+        Returns:
+            Optional[str]: AI-generated insight text, or None if unavailable
+
+        Raises:
+            No exceptions - gracefully degrades by returning None on errors
+        """
+        try:
+            client = self._get_client()
+
+            # Prepare request payload with leg information
+            payload = {
+                "mode": leg.mode.value,
+                "duration": leg.duration,
+                "distance": leg.distance,
+                "from_place": leg.from_place.name,
+                "to_place": leg.to_place.name,
+            }
+
+            # Include route information if available (e.g., bus number)
+            if leg.route:
+                payload["route"] = {
+                    "short_name": leg.route.short_name,
+                    "long_name": leg.route.long_name,
+                }
+
+            response = await client.post("/insights/route", json=payload)
+
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("insight")
+
+            logger.warning("AI agents service returned non-200 status: %s", response.status_code)
+            return None
+
+        except httpx.TimeoutException:
+            logger.warning("AI agents service request timed out")
+            return None
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Failed to get AI insight: %s", str(e))
+            return None
 
 
 # Singleton instance for dependency injection
