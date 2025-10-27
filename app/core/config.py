@@ -9,7 +9,7 @@ load_dotenv()
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Commute.ai"
     PROJECT_DESCRIPTION: str = "AI-powered public transport routing"
-    VERSION: str = "0.5.0"
+    VERSION: str = "0.6.0"
     API_V1_STR: str = "/api/v1"
 
     # JWT Settings
