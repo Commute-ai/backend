@@ -39,3 +39,6 @@ class RouteSearchResponse(BaseModel):
     destination: Coordinates
     itineraries: List[Itinerary] = Field(..., description="List of route itineraries")
     search_time: datetime = Field(..., description="Time when the search was performed")
+    ai_description: Optional[str] = Field(
+        default=None, description="AI-generated description of the route options"
+    )
