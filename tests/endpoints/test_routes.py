@@ -88,6 +88,7 @@ def test_search_routes_success(client: TestClient, sample_itineraries):
         assert "destination" in data
         assert "itineraries" in data
         assert "search_time" in data
+        # ai_description is optional, may or may not be present
 
         # Verify origin and destination
         assert data["origin"]["latitude"] == 60.1699
@@ -316,3 +317,54 @@ def test_search_routes_valid_edge_coordinates(client: TestClient, sample_itinera
                 },
             )
             assert response.status_code == 200
+
+
+def test_search_routes_without_ai_description(client: TestClient, sample_itineraries):
+    """Test that route response works without ai_description (graceful degradation)."""
+    with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
+        mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
+
+        response = client.post(
+            "/api/v1/routes/search",
+            json={
+                "origin": {"latitude": 60.1699, "longitude": 24.9384},
+                "destination": {"latitude": 60.2055, "longitude": 24.6559},
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify ai_description is present but can be None
+        assert "ai_description" in data
+        # When not provided, it should be None
+        assert data["ai_description"] is None
+
+
+def test_search_routes_with_ai_description(client: TestClient, sample_itineraries):
+    """Test that route response validates correctly when ai_description is provided."""
+    # Test the schema validation directly
+    from app.schemas.geo import Coordinates
+    from app.schemas.routes import RouteSearchResponse
+
+    # Schema should validate with ai_description
+    response_data = RouteSearchResponse(
+        origin=Coordinates(latitude=60.1699, longitude=24.9384),
+        destination=Coordinates(latitude=60.2055, longitude=24.6559),
+        itineraries=sample_itineraries,
+        search_time=datetime.now(timezone.utc),
+        ai_description="This route offers multiple options with varying travel times.",
+    )
+    assert (
+        response_data.ai_description
+        == "This route offers multiple options with varying travel times."
+    )
+
+    # Schema should validate without ai_description
+    response_data_no_ai = RouteSearchResponse(
+        origin=Coordinates(latitude=60.1699, longitude=24.9384),
+        destination=Coordinates(latitude=60.2055, longitude=24.6559),
+        itineraries=sample_itineraries,
+        search_time=datetime.now(timezone.utc),
+    )
+    assert response_data_no_ai.ai_description is None
