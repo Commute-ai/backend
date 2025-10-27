@@ -117,8 +117,7 @@ def sample_itineraries_with_insights():
                         description="Express bus service",
                     ),
                     ai_insight=(
-                        "Express bus with comfortable seats. "
-                        "Usually not crowded at this time."
+                        "Express bus with comfortable seats. " "Usually not crowded at this time."
                     ),
                 ),
             ],

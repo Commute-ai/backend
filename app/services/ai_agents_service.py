@@ -82,7 +82,7 @@ class AiAgentsService:
             client = self._get_client()
 
             # Prepare request payload with leg information
-            payload = {
+            payload: dict[str, str | int | float | dict[str, str] | None] = {
                 "mode": leg.mode.value,
                 "duration": leg.duration,
                 "distance": leg.distance,
