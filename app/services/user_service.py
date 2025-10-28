@@ -41,8 +41,8 @@ class UserService:
         """
         return db.query(User).filter(User.id == user_id).first()
 
-    @staticmethod
-    def create_user(db: Session, user_in: UserCreate, hashed_password: str) -> User:
+    @classmethod
+    def create_user(cls, db: Session, user_in: UserCreate, hashed_password: str) -> User:
         """
         Create a new user in the database.
 
@@ -58,7 +58,7 @@ class UserService:
             HTTPException: If user already exists or validation fails
         """
         # Check if user already exists
-        existing_user = UserService.get_user_by_username(db, user_in.username)
+        existing_user = cls.get_user_by_username(db, user_in.username)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

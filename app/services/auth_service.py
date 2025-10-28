@@ -5,21 +5,19 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, oauth2_scheme
 from app.db.database import get_db
 from app.models.user import User
 from app.schemas.token import TokenPayload
+from app.services.user_service import user_service
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
 class AuthService:
@@ -79,7 +77,7 @@ class AuthService:
         Returns:
             User object if authentication successful, None otherwise
         """
-        user = db.query(User).filter(User.username == username).first()
+        user = user_service.get_user_by_username(db, username)
         if not user:
             return None
         if not AuthService.verify_password(password, str(user.hashed_password)):
