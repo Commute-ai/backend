@@ -1,6 +1,7 @@
 """
 User service for handling user-related business logic.
 """
+
 from typing import Optional
 
 from fastapi import HTTPException, status

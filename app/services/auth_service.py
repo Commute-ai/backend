@@ -1,6 +1,7 @@
 """
 Authentication service for handling password hashing, verification, and token generation.
 """
+
 from datetime import timedelta
 from typing import Optional
 
@@ -102,9 +103,7 @@ class AuthService:
             HTTPException: If token is invalid or user not found
         """
         try:
-            payload = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-            )
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             token_data = TokenPayload(**payload)
         except (jwt.JWTError, ValidationError):
             raise HTTPException(
