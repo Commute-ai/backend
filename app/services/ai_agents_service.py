@@ -5,7 +5,7 @@ import httpx
 
 from app.core.config import settings
 from app.schemas.health import ServiceHealth
-from app.schemas.itinary import Itinerary, Leg
+from app.schemas.itinary import Itinerary
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +68,11 @@ class AiAgentsService:
     async def get_itinerary_insight(self, itinerary: Itinerary) -> None:
         """
         Get AI-generated insights for a complete itinerary and enrich it with AI data.
-        
+
         This method sends the entire itinerary to the AI service and receives back:
         - ai_description: Overall description of the itinerary
         - ai_insights: List of insights for each leg
-        
+
         The method directly modifies the itinerary object in place, setting:
         - itinerary.ai_description
         - leg.ai_insight for each leg
@@ -120,10 +120,10 @@ class AiAgentsService:
 
             if response.status_code == 200:
                 data = response.json()
-                
+
                 # Set the itinerary-level AI description
                 itinerary.ai_description = data.get("ai_description")
-                
+
                 # Set AI insights for each leg
                 ai_insights = data.get("ai_insights", [])
                 for idx, leg in enumerate(itinerary.legs):
@@ -131,7 +131,7 @@ class AiAgentsService:
                         leg.ai_insight = ai_insights[idx]
                     else:
                         leg.ai_insight = None
-                
+
                 return
 
             logger.warning(

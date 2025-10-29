@@ -442,11 +442,15 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
 
             # Mock AI service to enrich itinerary in place
             async def mock_get_itinerary_insight(itinerary):
-                itinerary.ai_description = "This route offers a good balance of walking and public transport."
+                itinerary.ai_description = (
+                    "This route offers a good balance of walking and public transport."
+                )
                 itinerary.legs[0].ai_insight = "Short walk to the bus stop."
                 itinerary.legs[1].ai_insight = "Express bus with comfortable seats."
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight)
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -490,7 +494,9 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
                 # Service unavailable - does not modify itinerary
                 pass
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight_unavailable)
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight_unavailable
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -527,7 +533,9 @@ def test_search_routes_with_ai_service_partial_failure(client: TestClient, sampl
                 # Only set description, not leg insights
                 itinerary.ai_description = "This is a good route."
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight_partial)
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight_partial
+            )
 
             response = client.post(
                 "/api/v1/routes/search",

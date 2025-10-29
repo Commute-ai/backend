@@ -185,10 +185,7 @@ async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "ai_description": "This route combines a short walk with a direct bus connection.",
-        "ai_insights": [
-            "Short walk to the bus stop.",
-            "Express bus with comfortable seats."
-        ]
+        "ai_insights": ["Short walk to the bus stop.", "Express bus with comfortable seats."],
     }
 
     with patch.object(ai_service, "_get_client") as mock_get_client:
@@ -210,9 +207,12 @@ async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
         assert len(payload["legs"]) == 2
         assert payload["legs"][0]["mode"] == "WALK"
         assert payload["legs"][1]["mode"] == "BUS"
-        
+
         # Verify the itinerary was enriched
-        assert sample_itinerary.ai_description == "This route combines a short walk with a direct bus connection."
+        assert (
+            sample_itinerary.ai_description
+            == "This route combines a short walk with a direct bus connection."
+        )
         assert sample_itinerary.legs[0].ai_insight == "Short walk to the bus stop."
         assert sample_itinerary.legs[1].ai_insight == "Express bus with comfortable seats."
 
