@@ -379,7 +379,7 @@ def test_search_routes_valid_edge_coordinates(client: TestClient, sample_itinera
 
 
 def test_search_routes_without_ai_description(client: TestClient, sample_itineraries):
-    """Test that route response works without ai_description (graceful degradation)."""
+    """Test that route response works without ai_description in itinerary (graceful degradation)."""
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -394,29 +394,30 @@ def test_search_routes_without_ai_description(client: TestClient, sample_itinera
         assert response.status_code == 200
         data = response.json()
 
-        # Verify ai_description is present but can be None
-        assert "ai_description" in data
-        # When not provided, it should be None
-        assert data["ai_description"] is None
+        # Verify ai_description is not in the response (removed from RouteSearchResponse)
+        assert "ai_description" not in data
+        # But it should be in each itinerary
+        assert "ai_description" in data["itineraries"][0]
 
 
 def test_search_routes_with_ai_description(client: TestClient, sample_itineraries):
-    """Test that route response validates correctly when ai_description is provided."""
+    """Test that itinerary schema validates correctly when ai_description is provided."""
     # Test the schema validation directly
     from app.schemas.geo import Coordinates
     from app.schemas.routes import RouteSearchResponse
 
-    # Schema should validate with ai_description
+    # Schema should validate with ai_description in itinerary
+    itinerary_with_description = sample_itineraries[0]
+    itinerary_with_description.ai_description = "This is a fast route with minimal walking."
+
     response_data = RouteSearchResponse(
         origin=Coordinates(latitude=60.1699, longitude=24.9384),
         destination=Coordinates(latitude=60.2055, longitude=24.6559),
-        itineraries=sample_itineraries,
+        itineraries=[itinerary_with_description],
         search_time=datetime.now(timezone.utc),
-        ai_description="This route offers multiple options with varying travel times.",
     )
     assert (
-        response_data.ai_description
-        == "This route offers multiple options with varying travel times."
+        response_data.itineraries[0].ai_description == "This is a fast route with minimal walking."
     )
 
     # Schema should validate without ai_description
@@ -426,22 +427,31 @@ def test_search_routes_with_ai_description(client: TestClient, sample_itinerarie
         itineraries=sample_itineraries,
         search_time=datetime.now(timezone.utc),
     )
-    assert response_data_no_ai.ai_description is None
+    # ai_description field removed from RouteSearchResponse
+    assert not hasattr(response_data_no_ai, "ai_description") or (
+        hasattr(response_data_no_ai, "ai_description")
+        and response_data_no_ai.ai_description is None
+    )
 
 
 def test_search_routes_with_ai_insights_success(client: TestClient, sample_itineraries):
-    """Test successful route search with AI insights for each leg."""
+    """Test successful route search with AI insights for each leg and itinerary."""
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to return insights
+            # Mock AI service to return insights for legs
             async def mock_get_insight(leg):
                 if leg.mode == TransportMode.WALK:
                     return "Short walk to the bus stop."
                 return "Express bus with comfortable seats."
 
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=mock_get_insight)
+            mock_ai_service.get_leg_insight = AsyncMock(side_effect=mock_get_insight)
+
+            # Mock AI service to return itinerary description
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                return_value="This route offers a good balance of walking and public transport."
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -466,7 +476,15 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
             assert itinerary["legs"][1]["ai_insight"] == "Express bus with comfortable seats."
 
             # Verify AI service was called for each leg
-            assert mock_ai_service.get_route_insight.call_count == 2
+            assert mock_ai_service.get_leg_insight.call_count == 2
+
+            # Verify AI description for the itinerary
+            assert (
+                itinerary["ai_description"]
+                == "This route offers a good balance of walking and public transport."
+            )
+            # Verify AI service was called for itinerary insight
+            assert mock_ai_service.get_itinerary_insight.call_count == 1
 
 
 def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_itineraries):
@@ -476,7 +494,8 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to return None (service unavailable)
-            mock_ai_service.get_route_insight = AsyncMock(return_value=None)
+            mock_ai_service.get_leg_insight = AsyncMock(return_value=None)
+            mock_ai_service.get_itinerary_insight = AsyncMock(return_value=None)
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -498,6 +517,8 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
             # AI insights should be None
             assert itinerary["legs"][0]["ai_insight"] is None
             assert itinerary["legs"][1]["ai_insight"] is None
+            # AI description should be None
+            assert itinerary["ai_description"] is None
 
 
 def test_search_routes_with_ai_service_partial_failure(client: TestClient, sample_itineraries):
@@ -516,7 +537,7 @@ def test_search_routes_with_ai_service_partial_failure(client: TestClient, sampl
                     return "Short walk to the bus stop."
                 return None  # Simulate failure for second leg
 
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=mock_get_insight_partial)
+            mock_ai_service.get_leg_insight = AsyncMock(side_effect=mock_get_insight_partial)
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -543,7 +564,10 @@ def test_search_routes_with_ai_service_exception(client: TestClient, sample_itin
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to raise an exception
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=Exception("AI service error"))
+            mock_ai_service.get_leg_insight = AsyncMock(side_effect=Exception("AI service error"))
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=Exception("AI service error")
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -565,6 +589,8 @@ def test_search_routes_with_ai_service_exception(client: TestClient, sample_itin
             # AI insights should be None due to graceful degradation
             assert itinerary["legs"][0]["ai_insight"] is None
             assert itinerary["legs"][1]["ai_insight"] is None
+            # AI description should be None due to graceful degradation
+            assert itinerary["ai_description"] is None
 
 
 def test_leg_schema_with_ai_insight():

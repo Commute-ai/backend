@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from app.schemas.geo import Coordinates
-from app.schemas.itinary import Leg, Route, TransportMode
+from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
 from app.services.ai_agents_service import AiAgentsService
 
@@ -67,7 +67,7 @@ def sample_walk_leg():
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_success(ai_service, sample_leg):
+async def test_get_leg_insight_success(ai_service, sample_leg):
     """Test successful AI insight retrieval."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -80,13 +80,14 @@ async def test_get_route_insight_success(ai_service, sample_leg):
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         assert insight == "This bus is usually on time and provides a comfortable ride."
         mock_client.post.assert_called_once()
 
         # Verify the payload structure
         call_args = mock_client.post.call_args
+        assert call_args.args[0] == "/api/v1/insight/leg"
         payload = call_args.kwargs["json"]
         assert payload["mode"] == "BUS"
         assert payload["duration"] == 1800
@@ -97,7 +98,7 @@ async def test_get_route_insight_success(ai_service, sample_leg):
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_walk_leg(ai_service, sample_walk_leg):
+async def test_get_leg_insight_walk_leg(ai_service, sample_walk_leg):
     """Test AI insight retrieval for walking leg (no route info)."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -108,7 +109,7 @@ async def test_get_route_insight_walk_leg(ai_service, sample_walk_leg):
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_walk_leg)
+        insight = await ai_service.get_leg_insight(sample_walk_leg)
 
         assert insight == "Short walk, well-lit path."
 
@@ -120,7 +121,7 @@ async def test_get_route_insight_walk_leg(ai_service, sample_walk_leg):
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_non_200_response(ai_service, sample_leg):
+async def test_get_leg_insight_non_200_response(ai_service, sample_leg):
     """Test handling of non-200 response from AI service."""
     mock_response = MagicMock()
     mock_response.status_code = 500
@@ -130,42 +131,42 @@ async def test_get_route_insight_non_200_response(ai_service, sample_leg):
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         # Should return None on error
         assert insight is None
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_timeout(ai_service, sample_leg):
+async def test_get_leg_insight_timeout(ai_service, sample_leg):
     """Test handling of timeout from AI service."""
     with patch.object(ai_service, "_get_client") as mock_get_client:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         # Should return None on timeout
         assert insight is None
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_network_error(ai_service, sample_leg):
+async def test_get_leg_insight_network_error(ai_service, sample_leg):
     """Test handling of network errors from AI service."""
     with patch.object(ai_service, "_get_client") as mock_get_client:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.RequestError("Network error"))
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         # Should return None on network error
         assert insight is None
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_missing_insight_in_response(ai_service, sample_leg):
+async def test_get_leg_insight_missing_insight_in_response(ai_service, sample_leg):
     """Test handling when AI service response doesn't include insight."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -176,21 +177,21 @@ async def test_get_route_insight_missing_insight_in_response(ai_service, sample_
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         # Should return None when insight is missing
         assert insight is None
 
 
 @pytest.mark.asyncio
-async def test_get_route_insight_exception(ai_service, sample_leg):
+async def test_get_leg_insight_exception(ai_service, sample_leg):
     """Test handling of unexpected exceptions."""
     with patch.object(ai_service, "_get_client") as mock_get_client:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=Exception("Unexpected error"))
         mock_get_client.return_value = mock_client
 
-        insight = await ai_service.get_route_insight(sample_leg)
+        insight = await ai_service.get_leg_insight(sample_leg)
 
         # Should gracefully handle exception and return None
         assert insight is None
@@ -256,3 +257,143 @@ async def test_health_check_exception(ai_service):
 
         assert health.healthy is False
         assert "failed" in health.message.lower()
+
+
+@pytest.fixture
+def sample_itinerary():
+    """Create a sample itinerary for testing."""
+    return Itinerary(
+        start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
+        duration=2700,
+        walk_distance=500.0,
+        walk_time=400,
+        legs=[
+            Leg(
+                mode=TransportMode.WALK,
+                start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+                end=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                duration=600,
+                distance=500.0,
+                from_place=Place(
+                    coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+                    name="Origin",
+                ),
+                to_place=Place(
+                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    name="Bus Stop",
+                ),
+                route=None,
+            ),
+            Leg(
+                mode=TransportMode.BUS,
+                start=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
+                duration=2100,
+                distance=15000.0,
+                from_place=Place(
+                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    name="Bus Stop",
+                ),
+                to_place=Place(
+                    coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+                    name="Destination",
+                ),
+                route=Route(
+                    short_name="550",
+                    long_name="Helsinki - Espoo",
+                    description="Express bus service",
+                ),
+            ),
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
+    """Test successful AI itinerary insight retrieval."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "insight": "This route combines a short walk with a direct bus connection."
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_itinerary_insight(sample_itinerary)
+
+        assert insight == "This route combines a short walk with a direct bus connection."
+        mock_client.post.assert_called_once()
+
+        # Verify the payload structure
+        call_args = mock_client.post.call_args
+        assert call_args.args[0] == "/api/v1/insight/itinerary"
+        payload = call_args.kwargs["json"]
+        assert payload["duration"] == 2700
+        assert payload["walk_distance"] == 500.0
+        assert payload["walk_time"] == 400
+        assert len(payload["legs"]) == 2
+        assert payload["legs"][0]["mode"] == "WALK"
+        assert payload["legs"][1]["mode"] == "BUS"
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_non_200_response(ai_service, sample_itinerary):
+    """Test handling of non-200 response for itinerary insight."""
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Should return None on error
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_timeout(ai_service, sample_itinerary):
+    """Test handling of timeout for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Should return None on timeout
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_network_error(ai_service, sample_itinerary):
+    """Test handling of network errors for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("Network error"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Should return None on network error
+        assert insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_exception(ai_service, sample_itinerary):
+    """Test handling of unexpected exceptions for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=Exception("Unexpected error"))
+        mock_get_client.return_value = mock_client
+
+        insight = await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Should gracefully handle exception and return None
+        assert insight is None
