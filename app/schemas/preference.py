@@ -9,7 +9,7 @@ class PreferenceBase(BaseModel):
 
 
 class PreferenceCreate(PreferenceBase):
-    user_id: str
+    user_id: int
 
 
 class PreferenceResponse(PreferenceBase):
