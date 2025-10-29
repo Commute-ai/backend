@@ -61,11 +61,21 @@ async def search_routes(request: RouteSearchRequest) -> Any:
             first=request.num_itineraries,
         )
 
-        # Enhance each leg with AI insights (with graceful degradation)
+        # Enhance each itinerary with AI description and each leg with AI insights
         for itinerary in itineraries:
+            # Get AI description for the complete itinerary (with graceful degradation)
+            try:
+                ai_description = await ai_agents_service.get_itinerary_insight(itinerary)
+                itinerary.ai_description = ai_description
+            except Exception as e:  # pylint: disable=broad-except
+                # Gracefully degrade - log warning but continue without AI description
+                logger.warning("Failed to get AI description for itinerary: %s", str(e))
+                itinerary.ai_description = None
+
+            # Get AI insights for each leg (with graceful degradation)
             for leg in itinerary.legs:
                 try:
-                    ai_insight = await ai_agents_service.get_route_insight(leg)
+                    ai_insight = await ai_agents_service.get_leg_insight(leg)
                     leg.ai_insight = ai_insight
                 except Exception as e:  # pylint: disable=broad-except
                     # Gracefully degrade - log warning but continue without AI insight

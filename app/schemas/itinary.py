@@ -59,3 +59,6 @@ class Itinerary(BaseModel):
     walk_distance: float = Field(..., description="Total walking distance in meters")
     walk_time: int = Field(..., description="Total walking time in seconds")
     legs: List[Leg]
+    ai_description: Optional[str] = Field(
+        default=None, description="AI-generated description of the complete itinerary"
+    )
