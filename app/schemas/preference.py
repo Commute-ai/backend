@@ -1,17 +1,20 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PreferenceBase(BaseModel):
-    preference: str
+    prompt: str
 
 
 class PreferenceCreate(PreferenceBase):
-    user_id: int
+    pass
 
 
 class PreferenceResponse(PreferenceBase):
+    id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
