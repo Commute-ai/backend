@@ -59,7 +59,7 @@ class PreferenceService:
             HTTPException: If validation fails
         """
         # Validate prompt is not empty
-        if not preference_in.prompt or not preference_in.prompt.strip():
+        if not preference_in.prompt.strip():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Preference prompt cannot be empty",
