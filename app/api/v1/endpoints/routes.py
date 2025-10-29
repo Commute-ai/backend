@@ -61,16 +61,13 @@ async def search_routes(request: RouteSearchRequest) -> Any:
             first=request.num_itineraries,
         )
 
-        # Enhance each leg with AI insights (with graceful degradation)
+        # Enhance each itinerary with AI insights (with graceful degradation)
         for itinerary in itineraries:
-            for leg in itinerary.legs:
-                try:
-                    ai_insight = await ai_agents_service.get_route_insight(leg)
-                    leg.ai_insight = ai_insight
-                except Exception as e:  # pylint: disable=broad-except
-                    # Gracefully degrade - log warning but continue without AI insight
-                    logger.warning("Failed to get AI insight for leg: %s", str(e))
-                    leg.ai_insight = None
+            try:
+                await ai_agents_service.get_itinerary_insight(itinerary)
+            except Exception as e:  # pylint: disable=broad-except
+                # Gracefully degrade - log warning but continue without AI insights
+                logger.warning("Failed to get AI insights for itinerary: %s", str(e))
 
         logger.info("Route search successful: found %d itineraries", len(itineraries))
 
