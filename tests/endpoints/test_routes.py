@@ -440,18 +440,13 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to return insights for legs
-            async def mock_get_insight(leg):
-                if leg.mode == TransportMode.WALK:
-                    return "Short walk to the bus stop."
-                return "Express bus with comfortable seats."
+            # Mock AI service to enrich itinerary in place
+            async def mock_get_itinerary_insight(itinerary):
+                itinerary.ai_description = "This route offers a good balance of walking and public transport."
+                itinerary.legs[0].ai_insight = "Short walk to the bus stop."
+                itinerary.legs[1].ai_insight = "Express bus with comfortable seats."
 
-            mock_ai_service.get_leg_insight = AsyncMock(side_effect=mock_get_insight)
-
-            # Mock AI service to return itinerary description
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                return_value="This route offers a good balance of walking and public transport."
-            )
+            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight)
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -475,9 +470,6 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
             # Check second leg (BUS)
             assert itinerary["legs"][1]["ai_insight"] == "Express bus with comfortable seats."
 
-            # Verify AI service was called for each leg
-            assert mock_ai_service.get_leg_insight.call_count == 2
-
             # Verify AI description for the itinerary
             assert (
                 itinerary["ai_description"]
@@ -493,9 +485,12 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to return None (service unavailable)
-            mock_ai_service.get_leg_insight = AsyncMock(return_value=None)
-            mock_ai_service.get_itinerary_insight = AsyncMock(return_value=None)
+            # Mock AI service to do nothing (service unavailable)
+            async def mock_get_itinerary_insight_unavailable(itinerary):
+                # Service unavailable - does not modify itinerary
+                pass
+
+            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight_unavailable)
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -522,22 +517,17 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
 
 
 def test_search_routes_with_ai_service_partial_failure(client: TestClient, sample_itineraries):
-    """Test graceful degradation when AI service fails for some legs."""
+    """Test graceful degradation when AI service provides partial data."""
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to succeed for first leg, fail for second
-            call_count = 0
+            # Mock AI service to provide partial data
+            async def mock_get_itinerary_insight_partial(itinerary):
+                # Only set description, not leg insights
+                itinerary.ai_description = "This is a good route."
 
-            async def mock_get_insight_partial(leg):
-                nonlocal call_count
-                call_count += 1
-                if call_count == 1:
-                    return "Short walk to the bus stop."
-                return None  # Simulate failure for second leg
-
-            mock_ai_service.get_leg_insight = AsyncMock(side_effect=mock_get_insight_partial)
+            mock_ai_service.get_itinerary_insight = AsyncMock(side_effect=mock_get_itinerary_insight_partial)
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -550,10 +540,9 @@ def test_search_routes_with_ai_service_partial_failure(client: TestClient, sampl
             assert response.status_code == 200
             data = response.json()
 
-            # Verify first leg has insight
-            assert data["itineraries"][0]["legs"][0]["ai_insight"] == "Short walk to the bus stop."
-
-            # Verify second leg has no insight (graceful degradation)
+            # Verify itinerary has description but legs don't have insights
+            assert data["itineraries"][0]["ai_description"] == "This is a good route."
+            assert data["itineraries"][0]["legs"][0]["ai_insight"] is None
             assert data["itineraries"][0]["legs"][1]["ai_insight"] is None
 
 
@@ -564,7 +553,6 @@ def test_search_routes_with_ai_service_exception(client: TestClient, sample_itin
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to raise an exception
-            mock_ai_service.get_leg_insight = AsyncMock(side_effect=Exception("AI service error"))
             mock_ai_service.get_itinerary_insight = AsyncMock(
                 side_effect=Exception("AI service error")
             )

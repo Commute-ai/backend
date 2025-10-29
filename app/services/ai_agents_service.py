@@ -65,66 +65,26 @@ class AiAgentsService:
                 message=f"AI-agents API check failed: {str(e)}",
             )
 
-    async def get_leg_insight(self, leg: Leg) -> Optional[str]:
+    async def get_itinerary_insight(self, itinerary: Itinerary) -> None:
         """
-        Get AI-generated insight for a specific leg of the journey.
-
-        Args:
-            leg: The leg object containing journey segment information
-
-        Returns:
-            Optional[str]: AI-generated insight text, or None if unavailable
-
-        Raises:
-            No exceptions - gracefully degrades by returning None on errors
-        """
-        try:
-            client = self._get_client()
-
-            # Prepare request payload with leg information
-            payload: dict[str, str | int | float | dict[str, str] | None] = {
-                "mode": leg.mode.value,
-                "duration": leg.duration,
-                "distance": leg.distance,
-                "from_place": leg.from_place.name,
-                "to_place": leg.to_place.name,
-            }
-
-            # Include route information if available (e.g., bus number)
-            if leg.route:
-                payload["route"] = {
-                    "short_name": leg.route.short_name,
-                    "long_name": leg.route.long_name,
-                }
-
-            response = await client.post("/api/v1/insight/leg", json=payload)
-
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("insight")
-
-            logger.warning("AI agents service returned non-200 status: %s", response.status_code)
-            return None
-
-        except httpx.TimeoutException:
-            logger.warning("AI agents service request timed out")
-            return None
-        except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Failed to get AI insight: %s", str(e))
-            return None
-
-    async def get_itinerary_insight(self, itinerary: Itinerary) -> Optional[str]:
-        """
-        Get AI-generated insight for a complete itinerary.
+        Get AI-generated insights for a complete itinerary and enrich it with AI data.
+        
+        This method sends the entire itinerary to the AI service and receives back:
+        - ai_description: Overall description of the itinerary
+        - ai_insights: List of insights for each leg
+        
+        The method directly modifies the itinerary object in place, setting:
+        - itinerary.ai_description
+        - leg.ai_insight for each leg
 
         Args:
             itinerary: The itinerary object containing the complete journey information
 
         Returns:
-            Optional[str]: AI-generated insight text for the itinerary, or None if unavailable
+            None - modifies the itinerary object in place
 
         Raises:
-            No exceptions - gracefully degrades by returning None on errors
+            No exceptions - gracefully degrades by returning without modification on errors
         """
         try:
             client = self._get_client()
@@ -160,20 +120,29 @@ class AiAgentsService:
 
             if response.status_code == 200:
                 data = response.json()
-                return data.get("insight")
+                
+                # Set the itinerary-level AI description
+                itinerary.ai_description = data.get("ai_description")
+                
+                # Set AI insights for each leg
+                ai_insights = data.get("ai_insights", [])
+                for idx, leg in enumerate(itinerary.legs):
+                    if idx < len(ai_insights):
+                        leg.ai_insight = ai_insights[idx]
+                    else:
+                        leg.ai_insight = None
+                
+                return
 
             logger.warning(
                 "AI agents service returned non-200 status for itinerary insight: %s",
                 response.status_code,
             )
-            return None
 
         except httpx.TimeoutException:
             logger.warning("AI agents service request timed out for itinerary insight")
-            return None
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("Failed to get AI itinerary insight: %s", str(e))
-            return None
 
 
 # Singleton instance for dependency injection
