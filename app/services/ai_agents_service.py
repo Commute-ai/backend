@@ -110,8 +110,8 @@ class AiAgentsService:
                         mode=leg.mode.value,
                         duration=leg.duration,
                         distance=leg.distance,
-                        from_place=leg.from_place.name,
-                        to_place=leg.to_place.name,
+                        from_place=leg.from_place.name or "",
+                        to_place=leg.to_place.name or "",
                         route=(
                             RouteInsightData(
                                 short_name=leg.route.short_name,

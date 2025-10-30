@@ -22,8 +22,8 @@ class LegInsightData(BaseModel):
     mode: str = Field(..., description="Transport mode (e.g., WALK, BUS, TRAM)")
     duration: int = Field(..., description="Duration in seconds")
     distance: float = Field(..., description="Distance in meters")
-    from_place: Optional[str] = Field(None, description="Name of the starting place")
-    to_place: Optional[str] = Field(None, description="Name of the destination place")
+    from_place: str = Field(..., description="Name of the starting place")
+    to_place: str = Field(..., description="Name of the destination place")
     route: Optional[RouteInsightData] = Field(None, description="Route information if applicable")
 
 
