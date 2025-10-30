@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import ValidationError
@@ -102,6 +103,43 @@ class AuthService:
         Raises:
             HTTPException: If token is invalid or user not found
         """
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            token_data = TokenPayload(**payload)
+        except (jwt.JWTError, ValidationError):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Could not validate credentials",
+            )
+
+        user = db.query(User).filter(User.id == int(token_data.sub)).first()  # type: ignore
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    @staticmethod
+    def get_current_user_optional(
+        db: Session = Depends(get_db),
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    ) -> Optional[User]:
+        """
+        Decode JWT token and return the current user if authenticated.
+        Returns None if no token is provided (allowing anonymous access).
+
+        Args:
+            db: Database session
+            credentials: Optional HTTP Bearer credentials from request
+
+        Returns:
+            User object for the authenticated user, or None if not authenticated
+
+        Raises:
+            HTTPException: If token is provided but invalid
+        """
+        if credentials is None:
+            return None
+
+        token = credentials.credentials
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             token_data = TokenPayload(**payload)

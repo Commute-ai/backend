@@ -65,7 +65,9 @@ class AiAgentsService:
                 message=f"AI-agents API check failed: {str(e)}",
             )
 
-    async def get_itinerary_insight(self, itinerary: Itinerary) -> None:
+    async def get_itinerary_insight(
+        self, itinerary: Itinerary, user_preferences: Optional[list] = None
+    ) -> None:
         """
         Get AI-generated insights for a complete itinerary and enrich it with AI data.
 
@@ -79,6 +81,7 @@ class AiAgentsService:
 
         Args:
             itinerary: The itinerary object containing the complete journey information
+            user_preferences: Optional list of user preference strings to consider
 
         Returns:
             None - modifies the itinerary object in place
@@ -115,6 +118,10 @@ class AiAgentsService:
                     for leg in itinerary.legs
                 ],
             }
+
+            # Add user preferences if provided
+            if user_preferences:
+                payload["user_preferences"] = user_preferences
 
             response = await client.post("/api/v1/insight/itinerary", json=payload)
 
