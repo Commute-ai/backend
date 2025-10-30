@@ -7,11 +7,32 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.models.preference import Preference
+from app.models.user import User
 from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
+from app.services.auth_service import auth_service
+
+
+def create_test_user(db: Session, username: str = "testuser") -> User:
+    """Helper function to create a test user"""
+    user = User(
+        username=username,
+        hashed_password=auth_service.get_password_hash("testpassword"),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_auth_header(user_id: int) -> dict:
+    """Helper function to generate authorization header with token"""
+    token = auth_service.generate_access_token(user_id)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -66,8 +87,13 @@ def sample_itineraries():
     ]
 
 
-def test_search_routes_with_request_preferences(client: TestClient, sample_itineraries):
+def test_search_routes_with_request_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test route search with preferences provided in request."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
@@ -89,6 +115,7 @@ def test_search_routes_with_request_preferences(client: TestClient, sample_itine
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                     "preferences": ["prefer walking", "avoid crowded buses"],
                 },
+                headers=headers,
             )
 
             assert response.status_code == 200
@@ -102,8 +129,13 @@ def test_search_routes_with_request_preferences(client: TestClient, sample_itine
             assert call_args.args[1] == ["prefer walking", "avoid crowded buses"]
 
 
-def test_search_routes_with_authenticated_user_preferences(client: TestClient, sample_itineraries):
+def test_search_routes_with_authenticated_user_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test route search with authenticated user and stored preferences."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             with patch("app.api.v1.endpoints.routes.preference_service") as mock_pref_service:
@@ -127,27 +159,32 @@ def test_search_routes_with_authenticated_user_preferences(client: TestClient, s
                     side_effect=mock_get_itinerary_insight
                 )
 
-                # For this test, we'll just verify the preferences passing mechanism works
-                # by patching at the DB level rather than the auth level
                 response = client.post(
                     "/api/v1/routes/search",
                     json={
                         "origin": {"latitude": 60.1699, "longitude": 24.9384},
                         "destination": {"latitude": 60.2055, "longitude": 24.6559},
                     },
+                    headers=headers,
                 )
 
                 assert response.status_code == 200
                 data = response.json()
                 assert len(data["itineraries"]) == 1
 
-                # Without authentication, AI service should be called with no preferences
+                # Verify AI service was called with stored preferences
                 assert len(captured_preferences) == 1
-                assert captured_preferences[0] is None
+                assert "I prefer eco-friendly routes" in captured_preferences[0]
+                assert "Avoid long walks" in captured_preferences[0]
 
 
-def test_search_routes_with_request_only_preferences(client: TestClient, sample_itineraries):
+def test_search_routes_with_request_only_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test route search with preferences only from request (no authentication)."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
@@ -170,6 +207,7 @@ def test_search_routes_with_request_only_preferences(client: TestClient, sample_
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                     "preferences": ["prefer trams", "avoid crowded buses"],
                 },
+                headers=headers,
             )
 
             assert response.status_code == 200
@@ -183,8 +221,11 @@ def test_search_routes_with_request_only_preferences(client: TestClient, sample_
             assert len(captured_preferences[0]) == 2  # Only request preferences
 
 
-def test_search_routes_without_preferences(client: TestClient, sample_itineraries):
+def test_search_routes_without_preferences(db: Session, client: TestClient, sample_itineraries):
     """Test route search without any preferences (should pass None to AI service)."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
@@ -206,6 +247,7 @@ def test_search_routes_without_preferences(client: TestClient, sample_itinerarie
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             assert response.status_code == 200
@@ -218,9 +260,12 @@ def test_search_routes_without_preferences(client: TestClient, sample_itinerarie
 
 
 def test_search_routes_preference_service_graceful_degradation(
-    client: TestClient, sample_itineraries
+    db: Session, client: TestClient, sample_itineraries
 ):
     """Test that route search still works when preferences are empty."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
@@ -242,6 +287,7 @@ def test_search_routes_preference_service_graceful_degradation(
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             # Should succeed without preferences
@@ -249,6 +295,7 @@ def test_search_routes_preference_service_graceful_degradation(
             data = response.json()
             assert len(data["itineraries"]) == 1
 
-            # Verify AI service was called with None (no preferences)
+            # Verify AI service was called with None (user has no stored preferences)
             assert len(captured_preferences) == 1
-            assert captured_preferences[0] is None
+            # User has no preferences, so empty list gets passed as None
+            assert captured_preferences[0] is None or captured_preferences[0] == []

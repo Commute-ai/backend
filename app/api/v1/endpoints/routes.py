@@ -6,7 +6,7 @@ Provides REST API for querying HSL public transport routes.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -34,18 +34,18 @@ router = APIRouter()
 async def search_routes(
     request: RouteSearchRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(auth_service.get_current_user_optional),
+    current_user: User = Depends(auth_service.get_current_user),
 ) -> Any:
     """
     Search for public transport routes between two locations.
 
     Queries the HSL (Helsinki Regional Transport) API to find route alternatives
-    between origin and destination coordinates.
+    between origin and destination coordinates. Requires authentication.
 
     Args:
         request: Route search parameters including origin, destination, and preferences
         db: Database session
-        current_user: Optional authenticated user
+        current_user: Authenticated user (required)
 
     Returns:
         RouteSearchResponse with list of available route itineraries
@@ -58,7 +58,7 @@ async def search_routes(
         request.origin,
         request.destination,
         request.num_itineraries,
-        current_user.id if current_user else None,
+        current_user.id,
     )
 
     # Use current time if earliest_departure not provided
@@ -71,13 +71,12 @@ async def search_routes(
     if request.preferences:
         user_preferences.extend(request.preferences)
 
-    # 2. Add stored preferences if user is authenticated
-    if current_user:
-        try:
-            stored_prefs = preference_service.get_user_preferences(db, int(current_user.id))
-            user_preferences.extend([str(pref.prompt) for pref in stored_prefs])
-        except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Failed to fetch user preferences: %s", str(e))
+    # 2. Add stored preferences from authenticated user
+    try:
+        stored_prefs = preference_service.get_user_preferences(db, int(current_user.id))
+        user_preferences.extend([str(pref.prompt) for pref in stored_prefs])
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("Failed to fetch user preferences: %s", str(e))
 
     logger.info("Using %d user preferences for route insights", len(user_preferences))
 
