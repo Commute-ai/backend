@@ -6,12 +6,17 @@ Provides REST API for querying HSL public transport routes.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from app.db.database import get_db
+from app.models.user import User
 from app.schemas.routes import RouteSearchRequest, RouteSearchResponse
 from app.services.ai_agents_service import ai_agents_service
+from app.services.auth_service import auth_service
+from app.services.preference_service import preference_service
 from app.services.routing_service import (
     RoutingAPIError,
     RoutingDataError,
@@ -26,7 +31,11 @@ router = APIRouter()
 
 
 @router.post("/search", response_model=RouteSearchResponse)
-async def search_routes(request: RouteSearchRequest) -> Any:
+async def search_routes(
+    request: RouteSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(auth_service.get_current_user_optional),
+) -> Any:
     """
     Search for public transport routes between two locations.
 
@@ -35,6 +44,8 @@ async def search_routes(request: RouteSearchRequest) -> Any:
 
     Args:
         request: Route search parameters including origin, destination, and preferences
+        db: Database session
+        current_user: Optional authenticated user
 
     Returns:
         RouteSearchResponse with list of available route itineraries
@@ -43,14 +54,32 @@ async def search_routes(request: RouteSearchRequest) -> Any:
         HTTPException: If the route search fails or returns invalid data
     """
     logger.info(
-        "Route search request: origin=%s, destination=%s, num_itineraries=%s",
+        "Route search request: origin=%s, destination=%s, num_itineraries=%s, user_id=%s",
         request.origin,
         request.destination,
         request.num_itineraries,
+        current_user.id if current_user else None,
     )
 
     # Use current time if earliest_departure not provided
     earliest_departure = request.earliest_departure or datetime.now(timezone.utc)
+
+    # Collect user preferences from multiple sources
+    user_preferences: List[str] = []
+
+    # 1. Add preferences from request (explicitly provided)
+    if request.preferences:
+        user_preferences.extend(request.preferences)
+
+    # 2. Add stored preferences if user is authenticated
+    if current_user:
+        try:
+            stored_prefs = preference_service.get_user_preferences(db, int(current_user.id))
+            user_preferences.extend([str(pref.prompt) for pref in stored_prefs])
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Failed to fetch user preferences: %s", str(e))
+
+    logger.info("Using %d user preferences for route insights", len(user_preferences))
 
     try:
         # Call routing service to fetch itineraries from HSL API
@@ -64,7 +93,9 @@ async def search_routes(request: RouteSearchRequest) -> Any:
         # Enhance each itinerary with AI insights (with graceful degradation)
         for itinerary in itineraries:
             try:
-                await ai_agents_service.get_itinerary_insight(itinerary)
+                await ai_agents_service.get_itinerary_insight(
+                    itinerary, user_preferences if user_preferences else None
+                )
             except Exception as e:  # pylint: disable=broad-except
                 # Gracefully degrade - log warning but continue without AI insights
                 logger.warning("Failed to get AI insights for itinerary: %s", str(e))

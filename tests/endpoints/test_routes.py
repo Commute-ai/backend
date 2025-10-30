@@ -441,7 +441,7 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to enrich itinerary in place
-            async def mock_get_itinerary_insight(itinerary):
+            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
                 itinerary.ai_description = (
                     "This route offers a good balance of walking and public transport."
                 )
@@ -490,7 +490,7 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to do nothing (service unavailable)
-            async def mock_get_itinerary_insight_unavailable(itinerary):
+            async def mock_get_itinerary_insight_unavailable(itinerary, user_preferences=None):
                 # Service unavailable - does not modify itinerary
                 pass
 
@@ -529,7 +529,7 @@ def test_search_routes_with_ai_service_partial_failure(client: TestClient, sampl
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to provide partial data
-            async def mock_get_itinerary_insight_partial(itinerary):
+            async def mock_get_itinerary_insight_partial(itinerary, user_preferences=None):
                 # Only set description, not leg insights
                 itinerary.ai_description = "This is a good route."
 

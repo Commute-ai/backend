@@ -30,6 +30,12 @@ class RouteSearchRequest(BaseModel):
         le=10,
         description="Number of route alternatives to return (1-10, default: 3)",
     )
+    preferences: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "User preferences for route optimization " "(e.g., 'prefer walking', 'avoid buses')"
+        ),
+    )
 
 
 class RouteSearchResponse(BaseModel):
