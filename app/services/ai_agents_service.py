@@ -4,6 +4,12 @@ from typing import Optional
 import httpx
 
 from app.core.config import settings
+from app.schemas.ai_agents import (
+    ItineraryInsightRequest,
+    ItineraryInsightResponse,
+    LegInsightData,
+    RouteInsightData,
+)
 from app.schemas.health import ServiceHealth
 from app.schemas.itinary import Itinerary
 
@@ -93,49 +99,47 @@ class AiAgentsService:
             client = self._get_client()
 
             # Prepare request payload with itinerary information
-            payload = {
-                "start": itinerary.start.isoformat(),
-                "end": itinerary.end.isoformat(),
-                "duration": itinerary.duration,
-                "walk_distance": itinerary.walk_distance,
-                "walk_time": itinerary.walk_time,
-                "legs": [
-                    {
-                        "mode": leg.mode.value,
-                        "duration": leg.duration,
-                        "distance": leg.distance,
-                        "from_place": leg.from_place.name,
-                        "to_place": leg.to_place.name,
-                        "route": (
-                            {
-                                "short_name": leg.route.short_name,
-                                "long_name": leg.route.long_name,
-                            }
+            request_data = ItineraryInsightRequest(
+                start=itinerary.start.isoformat(),
+                end=itinerary.end.isoformat(),
+                duration=itinerary.duration,
+                walk_distance=itinerary.walk_distance,
+                walk_time=itinerary.walk_time,
+                legs=[
+                    LegInsightData(
+                        mode=leg.mode.value,
+                        duration=leg.duration,
+                        distance=leg.distance,
+                        from_place=leg.from_place.name,
+                        to_place=leg.to_place.name,
+                        route=(
+                            RouteInsightData(
+                                short_name=leg.route.short_name,
+                                long_name=leg.route.long_name,
+                            )
                             if leg.route
                             else None
                         ),
-                    }
+                    )
                     for leg in itinerary.legs
                 ],
-            }
+                user_preferences=user_preferences,
+            )
 
-            # Add user preferences if provided
-            if user_preferences:
-                payload["user_preferences"] = user_preferences
-
-            response = await client.post("/api/v1/insight/itinerary", json=payload)
+            response = await client.post(
+                "/api/v1/insight/itinerary", json=request_data.model_dump(exclude_none=True)
+            )
 
             if response.status_code == 200:
-                data = response.json()
+                response_data = ItineraryInsightResponse(**response.json())
 
                 # Set the itinerary-level AI description
-                itinerary.ai_description = data.get("ai_description")
+                itinerary.ai_description = response_data.ai_description
 
                 # Set AI insights for each leg
-                ai_insights = data.get("ai_insights", [])
                 for idx, leg in enumerate(itinerary.legs):
-                    if idx < len(ai_insights):
-                        leg.ai_insight = ai_insights[idx]
+                    if idx < len(response_data.ai_insights):
+                        leg.ai_insight = response_data.ai_insights[idx]
                     else:
                         leg.ai_insight = None
 
