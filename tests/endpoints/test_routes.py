@@ -7,11 +7,32 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.models.user import User
 from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
+from app.services.auth_service import auth_service
 from app.services.routing_service import RoutingAPIError, RoutingDataError, RoutingNetworkError
+
+
+def create_test_user(db: Session, username: str = "testuser") -> User:
+    """Helper function to create a test user"""
+    user = User(
+        username=username,
+        hashed_password=auth_service.get_password_hash("testpassword"),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_auth_header(user_id: int) -> dict:
+    """Helper function to generate authorization header with token"""
+    token = auth_service.generate_access_token(user_id)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -125,8 +146,11 @@ def sample_itineraries_with_insights():
     ]
 
 
-def test_search_routes_success(client: TestClient, sample_itineraries):
+def test_search_routes_success(db: Session, client: TestClient, sample_itineraries):
     """Test successful route search."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -137,6 +161,7 @@ def test_search_routes_success(client: TestClient, sample_itineraries):
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 "num_itineraries": 3,
             },
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -163,8 +188,11 @@ def test_search_routes_success(client: TestClient, sample_itineraries):
         assert len(itinerary["legs"]) == 2
 
 
-def test_search_routes_with_earliest_departure(client: TestClient, sample_itineraries):
+def test_search_routes_with_earliest_departure(db: Session, client: TestClient, sample_itineraries):
     """Test route search with custom earliest departure time."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -175,6 +203,7 @@ def test_search_routes_with_earliest_departure(client: TestClient, sample_itiner
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 "earliest_departure": "2025-10-14T12:00:00Z",
             },
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -182,8 +211,11 @@ def test_search_routes_with_earliest_departure(client: TestClient, sample_itiner
         mock_service.get_itinaries.assert_called_once()
 
 
-def test_search_routes_default_num_itineraries(client: TestClient, sample_itineraries):
+def test_search_routes_default_num_itineraries(db: Session, client: TestClient, sample_itineraries):
     """Test that num_itineraries defaults to 3."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -193,6 +225,7 @@ def test_search_routes_default_num_itineraries(client: TestClient, sample_itiner
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -201,45 +234,60 @@ def test_search_routes_default_num_itineraries(client: TestClient, sample_itiner
         assert call_args.kwargs["first"] == 3
 
 
-def test_search_routes_invalid_coordinates(client: TestClient):
+def test_search_routes_invalid_coordinates(db: Session, client: TestClient):
     """Test route search with invalid coordinates."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     response = client.post(
         "/api/v1/routes/search",
         json={
             "origin": {"latitude": 91.0, "longitude": 24.9384},  # Invalid latitude
             "destination": {"latitude": 60.2055, "longitude": 24.6559},
         },
+        headers=headers,
     )
 
     assert response.status_code == 422  # Validation error
 
 
-def test_search_routes_missing_origin(client: TestClient):
+def test_search_routes_missing_origin(db: Session, client: TestClient):
     """Test route search with missing origin."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     response = client.post(
         "/api/v1/routes/search",
         json={
             "destination": {"latitude": 60.2055, "longitude": 24.6559},
         },
+        headers=headers,
     )
 
     assert response.status_code == 422
 
 
-def test_search_routes_missing_destination(client: TestClient):
+def test_search_routes_missing_destination(db: Session, client: TestClient):
     """Test route search with missing destination."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     response = client.post(
         "/api/v1/routes/search",
         json={
             "origin": {"latitude": 60.1699, "longitude": 24.9384},
         },
+        headers=headers,
     )
 
     assert response.status_code == 422
 
 
-def test_search_routes_invalid_num_itineraries_too_low(client: TestClient):
+def test_search_routes_invalid_num_itineraries_too_low(db: Session, client: TestClient):
     """Test route search with num_itineraries below minimum."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     response = client.post(
         "/api/v1/routes/search",
         json={
@@ -247,13 +295,17 @@ def test_search_routes_invalid_num_itineraries_too_low(client: TestClient):
             "destination": {"latitude": 60.2055, "longitude": 24.6559},
             "num_itineraries": 0,  # Below minimum of 1
         },
+        headers=headers,
     )
 
     assert response.status_code == 422
 
 
-def test_search_routes_invalid_num_itineraries_too_high(client: TestClient):
+def test_search_routes_invalid_num_itineraries_too_high(db: Session, client: TestClient):
     """Test route search with num_itineraries above maximum."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     response = client.post(
         "/api/v1/routes/search",
         json={
@@ -261,13 +313,17 @@ def test_search_routes_invalid_num_itineraries_too_high(client: TestClient):
             "destination": {"latitude": 60.2055, "longitude": 24.6559},
             "num_itineraries": 11,  # Above maximum of 10
         },
+        headers=headers,
     )
 
     assert response.status_code == 422
 
 
-def test_search_routes_hsl_api_error(client: TestClient):
+def test_search_routes_hsl_api_error(db: Session, client: TestClient):
     """Test handling of HSL API errors."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(side_effect=RoutingAPIError("API error"))
 
@@ -277,14 +333,18 @@ def test_search_routes_hsl_api_error(client: TestClient):
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 502
         assert "HSL API error" in response.json()["detail"]
 
 
-def test_search_routes_network_error(client: TestClient):
+def test_search_routes_network_error(db: Session, client: TestClient):
     """Test handling of network errors."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(side_effect=RoutingNetworkError("Network error"))
 
@@ -294,14 +354,18 @@ def test_search_routes_network_error(client: TestClient):
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 503
         assert "Network error" in response.json()["detail"]
 
 
-def test_search_routes_data_error(client: TestClient):
+def test_search_routes_data_error(db: Session, client: TestClient):
     """Test handling of data parsing errors."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(side_effect=RoutingDataError("Parse error"))
 
@@ -311,14 +375,18 @@ def test_search_routes_data_error(client: TestClient):
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 502
         assert "Failed to parse" in response.json()["detail"]
 
 
-def test_search_routes_empty_result(client: TestClient):
+def test_search_routes_empty_result(db: Session, client: TestClient):
     """Test route search with no results."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=[])
 
@@ -328,6 +396,7 @@ def test_search_routes_empty_result(client: TestClient):
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 200
@@ -335,8 +404,11 @@ def test_search_routes_empty_result(client: TestClient):
         assert len(data["itineraries"]) == 0
 
 
-def test_search_routes_coordinates_validation(client: TestClient):
+def test_search_routes_coordinates_validation(db: Session, client: TestClient):
     """Test coordinate validation with various invalid values."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     test_cases = [
         {"latitude": -91.0, "longitude": 0.0},  # Latitude too low
         {"latitude": 91.0, "longitude": 0.0},  # Latitude too high
@@ -351,12 +423,16 @@ def test_search_routes_coordinates_validation(client: TestClient):
                 "origin": invalid_coords,
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
         assert response.status_code == 422
 
 
-def test_search_routes_valid_edge_coordinates(client: TestClient, sample_itineraries):
+def test_search_routes_valid_edge_coordinates(db: Session, client: TestClient, sample_itineraries):
     """Test route search with edge case valid coordinates."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -374,12 +450,16 @@ def test_search_routes_valid_edge_coordinates(client: TestClient, sample_itinera
                     "origin": coords,
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
             assert response.status_code == 200
 
 
-def test_search_routes_without_ai_description(client: TestClient, sample_itineraries):
-    """Test that route response works without ai_description (graceful degradation)."""
+def test_search_routes_without_ai_description(db: Session, client: TestClient, sample_itineraries):
+    """Test that route response works without ai_description in itinerary (graceful degradation)."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
         mock_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
@@ -389,34 +469,36 @@ def test_search_routes_without_ai_description(client: TestClient, sample_itinera
                 "origin": {"latitude": 60.1699, "longitude": 24.9384},
                 "destination": {"latitude": 60.2055, "longitude": 24.6559},
             },
+            headers=headers,
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        # Verify ai_description is present but can be None
-        assert "ai_description" in data
-        # When not provided, it should be None
-        assert data["ai_description"] is None
+        # Verify ai_description is not in the response (removed from RouteSearchResponse)
+        assert "ai_description" not in data
+        # But it should be in each itinerary
+        assert "ai_description" in data["itineraries"][0]
 
 
-def test_search_routes_with_ai_description(client: TestClient, sample_itineraries):
-    """Test that route response validates correctly when ai_description is provided."""
+def test_search_routes_with_ai_description(db: Session, client: TestClient, sample_itineraries):
+    """Test that itinerary schema validates correctly when ai_description is provided."""
     # Test the schema validation directly
     from app.schemas.geo import Coordinates
     from app.schemas.routes import RouteSearchResponse
 
-    # Schema should validate with ai_description
+    # Schema should validate with ai_description in itinerary
+    itinerary_with_description = sample_itineraries[0]
+    itinerary_with_description.ai_description = "This is a fast route with minimal walking."
+
     response_data = RouteSearchResponse(
         origin=Coordinates(latitude=60.1699, longitude=24.9384),
         destination=Coordinates(latitude=60.2055, longitude=24.6559),
-        itineraries=sample_itineraries,
+        itineraries=[itinerary_with_description],
         search_time=datetime.now(timezone.utc),
-        ai_description="This route offers multiple options with varying travel times.",
     )
     assert (
-        response_data.ai_description
-        == "This route offers multiple options with varying travel times."
+        response_data.itineraries[0].ai_description == "This is a fast route with minimal walking."
     )
 
     # Schema should validate without ai_description
@@ -426,22 +508,35 @@ def test_search_routes_with_ai_description(client: TestClient, sample_itinerarie
         itineraries=sample_itineraries,
         search_time=datetime.now(timezone.utc),
     )
-    assert response_data_no_ai.ai_description is None
+    # ai_description field removed from RouteSearchResponse
+    assert not hasattr(response_data_no_ai, "ai_description") or (
+        hasattr(response_data_no_ai, "ai_description")
+        and response_data_no_ai.ai_description is None
+    )
 
 
-def test_search_routes_with_ai_insights_success(client: TestClient, sample_itineraries):
-    """Test successful route search with AI insights for each leg."""
+def test_search_routes_with_ai_insights_success(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test successful route search with AI insights for each leg and itinerary."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to return insights
-            async def mock_get_insight(leg):
-                if leg.mode == TransportMode.WALK:
-                    return "Short walk to the bus stop."
-                return "Express bus with comfortable seats."
+            # Mock AI service to enrich itinerary in place
+            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
+                itinerary.ai_description = (
+                    "This route offers a good balance of walking and public transport."
+                )
+                itinerary.legs[0].ai_insight = "Short walk to the bus stop."
+                itinerary.legs[1].ai_insight = "Express bus with comfortable seats."
 
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=mock_get_insight)
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -449,6 +544,7 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             assert response.status_code == 200
@@ -465,18 +561,34 @@ def test_search_routes_with_ai_insights_success(client: TestClient, sample_itine
             # Check second leg (BUS)
             assert itinerary["legs"][1]["ai_insight"] == "Express bus with comfortable seats."
 
-            # Verify AI service was called for each leg
-            assert mock_ai_service.get_route_insight.call_count == 2
+            # Verify AI description for the itinerary
+            assert (
+                itinerary["ai_description"]
+                == "This route offers a good balance of walking and public transport."
+            )
+            # Verify AI service was called for itinerary insight
+            assert mock_ai_service.get_itinerary_insight.call_count == 1
 
 
-def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_itineraries):
+def test_search_routes_with_ai_service_unavailable(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test graceful degradation when AI service is unavailable."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to return None (service unavailable)
-            mock_ai_service.get_route_insight = AsyncMock(return_value=None)
+            # Mock AI service to do nothing (service unavailable)
+            async def mock_get_itinerary_insight_unavailable(itinerary, user_preferences=None):
+                # Service unavailable - does not modify itinerary
+                pass
+
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight_unavailable
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -484,6 +596,7 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             # Should still succeed with 200, but without AI insights
@@ -498,25 +611,29 @@ def test_search_routes_with_ai_service_unavailable(client: TestClient, sample_it
             # AI insights should be None
             assert itinerary["legs"][0]["ai_insight"] is None
             assert itinerary["legs"][1]["ai_insight"] is None
+            # AI description should be None
+            assert itinerary["ai_description"] is None
 
 
-def test_search_routes_with_ai_service_partial_failure(client: TestClient, sample_itineraries):
-    """Test graceful degradation when AI service fails for some legs."""
+def test_search_routes_with_ai_service_partial_failure(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test graceful degradation when AI service provides partial data."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to succeed for first leg, fail for second
-            call_count = 0
+            # Mock AI service to provide partial data
+            async def mock_get_itinerary_insight_partial(itinerary, user_preferences=None):
+                # Only set description, not leg insights
+                itinerary.ai_description = "This is a good route."
 
-            async def mock_get_insight_partial(leg):
-                nonlocal call_count
-                call_count += 1
-                if call_count == 1:
-                    return "Short walk to the bus stop."
-                return None  # Simulate failure for second leg
-
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=mock_get_insight_partial)
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=mock_get_itinerary_insight_partial
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -524,26 +641,33 @@ def test_search_routes_with_ai_service_partial_failure(client: TestClient, sampl
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             assert response.status_code == 200
             data = response.json()
 
-            # Verify first leg has insight
-            assert data["itineraries"][0]["legs"][0]["ai_insight"] == "Short walk to the bus stop."
-
-            # Verify second leg has no insight (graceful degradation)
+            # Verify itinerary has description but legs don't have insights
+            assert data["itineraries"][0]["ai_description"] == "This is a good route."
+            assert data["itineraries"][0]["legs"][0]["ai_insight"] is None
             assert data["itineraries"][0]["legs"][1]["ai_insight"] is None
 
 
-def test_search_routes_with_ai_service_exception(client: TestClient, sample_itineraries):
+def test_search_routes_with_ai_service_exception(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test graceful degradation when AI service raises an exception."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to raise an exception
-            mock_ai_service.get_route_insight = AsyncMock(side_effect=Exception("AI service error"))
+            mock_ai_service.get_itinerary_insight = AsyncMock(
+                side_effect=Exception("AI service error")
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -551,6 +675,7 @@ def test_search_routes_with_ai_service_exception(client: TestClient, sample_itin
                     "origin": {"latitude": 60.1699, "longitude": 24.9384},
                     "destination": {"latitude": 60.2055, "longitude": 24.6559},
                 },
+                headers=headers,
             )
 
             # Should still succeed with 200, gracefully degrading
@@ -565,6 +690,8 @@ def test_search_routes_with_ai_service_exception(client: TestClient, sample_itin
             # AI insights should be None due to graceful degradation
             assert itinerary["legs"][0]["ai_insight"] is None
             assert itinerary["legs"][1]["ai_insight"] is None
+            # AI description should be None due to graceful degradation
+            assert itinerary["ai_description"] is None
 
 
 def test_leg_schema_with_ai_insight():

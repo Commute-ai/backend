@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
+from app.services.auth_service import auth_service
 
 
 def create_test_user(db: Session):
@@ -11,7 +11,7 @@ def create_test_user(db: Session):
     username = "testuser"
     user = User(
         username=username,
-        hashed_password=get_password_hash("testpassword"),
+        hashed_password=auth_service.get_password_hash("testpassword"),
     )
     db.add(user)
     db.commit()
@@ -21,7 +21,7 @@ def create_test_user(db: Session):
 
 def get_auth_header(user_id: int):
     """Helper function to generate authorization header with token"""
-    token = create_access_token(subject=user_id)
+    token = auth_service.generate_access_token(user_id)
     return {"Authorization": f"Bearer {token}"}
 
 

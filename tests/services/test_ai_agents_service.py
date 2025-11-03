@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from app.schemas.geo import Coordinates
-from app.schemas.itinary import Leg, Route, TransportMode
+from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
 from app.services.ai_agents_service import AiAgentsService
 
@@ -64,136 +64,6 @@ def sample_walk_leg():
         ),
         route=None,
     )
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_success(ai_service, sample_leg):
-    """Test successful AI insight retrieval."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "insight": "This bus is usually on time and provides a comfortable ride."
-    }
-
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        assert insight == "This bus is usually on time and provides a comfortable ride."
-        mock_client.post.assert_called_once()
-
-        # Verify the payload structure
-        call_args = mock_client.post.call_args
-        payload = call_args.kwargs["json"]
-        assert payload["mode"] == "BUS"
-        assert payload["duration"] == 1800
-        assert payload["distance"] == 10000.0
-        assert payload["from_place"] == "Helsinki Central"
-        assert payload["to_place"] == "Espoo Central"
-        assert payload["route"]["short_name"] == "550"
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_walk_leg(ai_service, sample_walk_leg):
-    """Test AI insight retrieval for walking leg (no route info)."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"insight": "Short walk, well-lit path."}
-
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_walk_leg)
-
-        assert insight == "Short walk, well-lit path."
-
-        # Verify payload does not include route info for walking
-        call_args = mock_client.post.call_args
-        payload = call_args.kwargs["json"]
-        assert payload["mode"] == "WALK"
-        assert "route" not in payload
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_non_200_response(ai_service, sample_leg):
-    """Test handling of non-200 response from AI service."""
-    mock_response = MagicMock()
-    mock_response.status_code = 500
-
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        # Should return None on error
-        assert insight is None
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_timeout(ai_service, sample_leg):
-    """Test handling of timeout from AI service."""
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        # Should return None on timeout
-        assert insight is None
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_network_error(ai_service, sample_leg):
-    """Test handling of network errors from AI service."""
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(side_effect=httpx.RequestError("Network error"))
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        # Should return None on network error
-        assert insight is None
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_missing_insight_in_response(ai_service, sample_leg):
-    """Test handling when AI service response doesn't include insight."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {}  # Missing 'insight' key
-
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        # Should return None when insight is missing
-        assert insight is None
-
-
-@pytest.mark.asyncio
-async def test_get_route_insight_exception(ai_service, sample_leg):
-    """Test handling of unexpected exceptions."""
-    with patch.object(ai_service, "_get_client") as mock_get_client:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(side_effect=Exception("Unexpected error"))
-        mock_get_client.return_value = mock_client
-
-        insight = await ai_service.get_route_insight(sample_leg)
-
-        # Should gracefully handle exception and return None
-        assert insight is None
 
 
 @pytest.mark.asyncio
@@ -256,3 +126,221 @@ async def test_health_check_exception(ai_service):
 
         assert health.healthy is False
         assert "failed" in health.message.lower()
+
+
+@pytest.fixture
+def sample_itinerary():
+    """Create a sample itinerary for testing."""
+    return Itinerary(
+        start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+        end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
+        duration=2700,
+        walk_distance=500.0,
+        walk_time=400,
+        legs=[
+            Leg(
+                mode=TransportMode.WALK,
+                start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
+                end=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                duration=600,
+                distance=500.0,
+                from_place=Place(
+                    coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+                    name="Origin",
+                ),
+                to_place=Place(
+                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    name="Bus Stop",
+                ),
+                route=None,
+            ),
+            Leg(
+                mode=TransportMode.BUS,
+                start=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
+                duration=2100,
+                distance=15000.0,
+                from_place=Place(
+                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    name="Bus Stop",
+                ),
+                to_place=Place(
+                    coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+                    name="Destination",
+                ),
+                route=Route(
+                    short_name="550",
+                    long_name="Helsinki - Espoo",
+                    description="Express bus service",
+                ),
+            ),
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
+    """Test successful AI itinerary and leg insight retrieval."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "ai_description": "This route combines a short walk with a direct bus connection.",
+        "ai_insights": ["Short walk to the bus stop.", "Express bus with comfortable seats."],
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary)
+
+        mock_client.post.assert_called_once()
+
+        # Verify the payload structure
+        call_args = mock_client.post.call_args
+        assert call_args.args[0] == "/api/v1/insight/itinerary"
+        payload = call_args.kwargs["json"]
+        assert payload["duration"] == 2700
+        assert payload["walk_distance"] == 500.0
+        assert payload["walk_time"] == 400
+        assert len(payload["legs"]) == 2
+        assert payload["legs"][0]["mode"] == "WALK"
+        assert payload["legs"][1]["mode"] == "BUS"
+        # Verify no user_preferences in payload when not provided
+        assert "user_preferences" not in payload
+
+        # Verify the itinerary was enriched
+        assert (
+            sample_itinerary.ai_description
+            == "This route combines a short walk with a direct bus connection."
+        )
+        assert sample_itinerary.legs[0].ai_insight == "Short walk to the bus stop."
+        assert sample_itinerary.legs[1].ai_insight == "Express bus with comfortable seats."
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_non_200_response(ai_service, sample_itinerary):
+    """Test handling of non-200 response for itinerary insight."""
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Itinerary should not be modified on error
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
+        assert sample_itinerary.legs[1].ai_insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_timeout(ai_service, sample_itinerary):
+    """Test handling of timeout for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Itinerary should not be modified on timeout
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_network_error(ai_service, sample_itinerary):
+    """Test handling of network errors for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.RequestError("Network error"))
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Itinerary should not be modified on network error
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_exception(ai_service, sample_itinerary):
+    """Test handling of unexpected exceptions for itinerary insight."""
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=Exception("Unexpected error"))
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary)
+
+        # Itinerary should not be modified on exception
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_with_preferences(ai_service, sample_itinerary):
+    """Test AI itinerary insight with user preferences."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "ai_description": "This route is optimized for your preferences.",
+        "ai_insights": ["Minimal walking as preferred.", "Direct connection to destination."],
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        user_preferences = ["prefer minimal walking", "avoid transfers"]
+        await ai_service.get_itinerary_insight(sample_itinerary, user_preferences)
+
+        mock_client.post.assert_called_once()
+
+        # Verify the payload includes user preferences
+        call_args = mock_client.post.call_args
+        assert call_args.args[0] == "/api/v1/insight/itinerary"
+        payload = call_args.kwargs["json"]
+        assert "user_preferences" in payload
+        assert payload["user_preferences"] == user_preferences
+
+        # Verify the itinerary was enriched
+        assert sample_itinerary.ai_description == "This route is optimized for your preferences."
+        assert sample_itinerary.legs[0].ai_insight == "Minimal walking as preferred."
+        assert sample_itinerary.legs[1].ai_insight == "Direct connection to destination."
+
+
+@pytest.mark.asyncio
+async def test_get_itinerary_insight_without_preferences(ai_service, sample_itinerary):
+    """Test AI itinerary insight without user preferences."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "ai_description": "A standard route.",
+        "ai_insights": ["Walk to bus stop.", "Take bus."],
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        await ai_service.get_itinerary_insight(sample_itinerary, None)
+
+        mock_client.post.assert_called_once()
+
+        # Verify the payload does NOT include user preferences
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs["json"]
+        assert "user_preferences" not in payload
+
+        # Verify the itinerary was enriched
+        assert sample_itinerary.ai_description == "A standard route."
+        assert sample_itinerary.legs[0].ai_insight == "Walk to bus stop."
+        assert sample_itinerary.legs[1].ai_insight == "Take bus."

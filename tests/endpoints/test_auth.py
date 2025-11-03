@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from app.core.security import get_password_hash
 from app.models.user import User
+from app.services.auth_service import auth_service
 
 
 def test_create_user_table(db: Session):
@@ -40,7 +40,7 @@ def test_register_existing_user(db: Session, client: TestClient):
     username = "testexisting"
     db_user = User(
         username=username,
-        hashed_password=get_password_hash("testpassword123"),
+        hashed_password=auth_service.get_password_hash("testpassword123"),
     )
     db.add(db_user)
     db.commit()
@@ -62,7 +62,7 @@ def test_login_success(db: Session, client: TestClient):
     password = "correctpassword"
     db_user = User(
         username=username,
-        hashed_password=get_password_hash(password),
+        hashed_password=auth_service.get_password_hash(password),
     )
     db.add(db_user)
     db.commit()
@@ -80,7 +80,7 @@ def test_login_incorrect_password(db: Session, client: TestClient):
     username = "testuser"
     db_user = User(
         username=username,
-        hashed_password=get_password_hash("correctpassword"),
+        hashed_password=auth_service.get_password_hash("correctpassword"),
     )
     db.add(db_user)
     db.commit()
