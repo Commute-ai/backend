@@ -7,10 +7,6 @@ from app.core.config import settings
 from app.schemas.ai_agents import (
     ItineraryInsightRequest,
     ItineraryInsightResponse,
-    ItineraryInsightsRequest,
-    ItineraryInsightsResponse,
-    LegInsightData,
-    RouteInsightData,
 )
 from app.schemas.health import ServiceHealth
 from app.schemas.itinary import Itinerary
@@ -78,12 +74,9 @@ class AiAgentsService:
         self, itinerary: Itinerary, user_preferences: Optional[list] = None
     ) -> None:
         """
-        Get AI-generated insights for a complete itinerary and enrich it with AI data.
+        Get AI-generated insights for a single itinerary and enrich it with AI data.
 
-        This method sends the entire itinerary to the AI service and receives back:
-        - ai_description: Overall description of the itinerary
-        - ai_insights: List of insights for each leg
-
+        This is a convenience method that wraps get_itineraries_insight for single itinerary.
         The method directly modifies the itinerary object in place, setting:
         - itinerary.ai_description
         - leg.ai_insight for each leg
@@ -99,89 +92,46 @@ class AiAgentsService:
             No exceptions - gracefully degrades by returning without modification on errors
         """
         try:
-            client = self._get_client()
+            # Convert string preferences to PreferenceBase objects
+            from app.schemas.preference import PreferenceBase
 
-            # Prepare request payload with itinerary information
-            request_data = ItineraryInsightRequest(
-                start=itinerary.start.isoformat(),
-                end=itinerary.end.isoformat(),
-                duration=itinerary.duration,
-                walk_distance=itinerary.walk_distance,
-                walk_time=itinerary.walk_time,
-                legs=[
-                    LegInsightData(
-                        mode=leg.mode.value,
-                        duration=leg.duration,
-                        distance=leg.distance,
-                        from_place=leg.from_place.name or "",
-                        to_place=leg.to_place.name or "",
-                        route=(
-                            RouteInsightData(
-                                short_name=leg.route.short_name,
-                                long_name=leg.route.long_name,
-                            )
-                            if leg.route
-                            else None
-                        ),
-                    )
-                    for leg in itinerary.legs
-                ],
-                user_preferences=user_preferences,
+            prefs = (
+                [PreferenceBase(prompt=pref) for pref in user_preferences]
+                if user_preferences
+                else []
             )
 
-            response = await client.post(
-                "/api/v1/insight/itinerary", json=request_data.model_dump(exclude_none=True)
-            )
+            # Call the batch API with a single itinerary
+            await self.get_itineraries_insight([itinerary], prefs)
 
-            if response.status_code == 200:
-                response_data = ItineraryInsightResponse(**response.json())
-
-                # Set the itinerary-level AI description
-                itinerary.ai_description = response_data.ai_description
-
-                # Set AI insights for each leg
-                for idx, leg in enumerate(itinerary.legs):
-                    if idx < len(response_data.ai_insights):
-                        leg.ai_insight = response_data.ai_insights[idx]
-                    else:
-                        leg.ai_insight = None
-
-                return
-
-            logger.warning(
-                "AI agents service returned non-200 status for itinerary insight: %s",
-                response.status_code,
-            )
-
-        except httpx.TimeoutException:
-            logger.warning("AI agents service request timed out for itinerary insight")
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("Failed to get AI itinerary insight: %s", str(e))
 
-    async def get_itineraries_insights(
+    async def get_itineraries_insight(
         self, itineraries: List[Itinerary], user_preferences: List[PreferenceBase]
-    ) -> ItineraryInsightsResponse:
+    ) -> None:
         """
-        Get AI-generated insights for multiple itineraries.
+        Get AI-generated insights for multiple itineraries and enrich them with AI data.
 
         This method sends multiple itineraries to the AI service and receives back
-        insights for each itinerary and their constituent legs.
+        insights for each itinerary and their constituent legs. It modifies the
+        itinerary objects in place.
 
         Args:
             itineraries: List of itinerary objects to analyze
             user_preferences: List of user preference objects to consider
 
         Returns:
-            ItineraryInsightsResponse containing insights for all itineraries
+            None - modifies the itinerary objects in place
 
         Raises:
-            Exception: Raises exceptions on failure for proper error handling
+            No exceptions - gracefully degrades by returning without modification on errors
         """
         try:
             client = self._get_client()
 
             # Prepare request payload with itineraries information
-            request_data = ItineraryInsightsRequest(
+            request_data = ItineraryInsightRequest(
                 itineraries=itineraries,
                 user_preferences=user_preferences,
             )
@@ -191,21 +141,39 @@ class AiAgentsService:
             )
 
             if response.status_code == 200:
-                response_data = ItineraryInsightsResponse(**response.json())
-                return response_data
+                response_data = ItineraryInsightResponse(**response.json())
 
-            logger.error(
-                "AI agents service returned non-200 status for itineraries insights: %s",
+                # Map insights back to itineraries
+                for idx, itinerary in enumerate(itineraries):
+                    if idx < len(response_data.itenerary_insights):
+                        insight = response_data.itenerary_insights[idx]
+
+                        # Set the itinerary-level AI insight
+                        itinerary.ai_description = insight.ai_insight
+
+                        # Set AI insights for each leg
+                        for leg_idx, leg in enumerate(itinerary.legs):
+                            if leg_idx < len(insight.leg_insights):
+                                leg.ai_insight = insight.leg_insights[leg_idx].ai_insight
+                            else:
+                                leg.ai_insight = None
+                    else:
+                        # No insight returned for this itinerary
+                        itinerary.ai_description = None
+                        for leg in itinerary.legs:
+                            leg.ai_insight = None
+
+                return
+
+            logger.warning(
+                "AI agents service returned non-200 status for itineraries insight: %s",
                 response.status_code,
             )
-            raise Exception(f"AI agents service returned status {response.status_code}")
 
-        except httpx.TimeoutException as e:
-            logger.error("AI agents service request timed out for itineraries insights")
-            raise Exception("AI agents service request timed out") from e
-        except Exception as e:
-            logger.error("Failed to get AI itineraries insights: %s", str(e))
-            raise
+        except httpx.TimeoutException:
+            logger.warning("AI agents service request timed out for itineraries insight")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Failed to get AI itineraries insight: %s", str(e))
 
 
 # Singleton instance for dependency injection

@@ -184,8 +184,15 @@ async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "ai_description": "This route combines a short walk with a direct bus connection.",
-        "ai_insights": ["Short walk to the bus stop.", "Express bus with comfortable seats."],
+        "itenerary_insights": [
+            {
+                "ai_insight": "This route combines a short walk with a direct bus connection.",
+                "leg_insights": [
+                    {"ai_insight": "Short walk to the bus stop."},
+                    {"ai_insight": "Express bus with comfortable seats."},
+                ],
+            }
+        ]
     }
 
     with patch.object(ai_service, "_get_client") as mock_get_client:
@@ -199,16 +206,14 @@ async def test_get_itinerary_insight_success(ai_service, sample_itinerary):
 
         # Verify the payload structure
         call_args = mock_client.post.call_args
-        assert call_args.args[0] == "/api/v1/insight/itinerary"
+        assert call_args.args[0] == "/api/v1/insight/iteneraries"
         payload = call_args.kwargs["json"]
-        assert payload["duration"] == 2700
-        assert payload["walk_distance"] == 500.0
-        assert payload["walk_time"] == 400
-        assert len(payload["legs"]) == 2
-        assert payload["legs"][0]["mode"] == "WALK"
-        assert payload["legs"][1]["mode"] == "BUS"
-        # Verify no user_preferences in payload when not provided
-        assert "user_preferences" not in payload
+        assert len(payload["itineraries"]) == 1
+        assert payload["itineraries"][0]["duration"] == 2700
+        assert payload["itineraries"][0]["walk_distance"] == 500.0
+        assert payload["itineraries"][0]["walk_time"] == 400
+        # Verify empty user_preferences when not provided
+        assert payload["user_preferences"] == []
 
         # Verify the itinerary was enriched
         assert (
@@ -289,8 +294,15 @@ async def test_get_itinerary_insight_with_preferences(ai_service, sample_itinera
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "ai_description": "This route is optimized for your preferences.",
-        "ai_insights": ["Minimal walking as preferred.", "Direct connection to destination."],
+        "itenerary_insights": [
+            {
+                "ai_insight": "This route is optimized for your preferences.",
+                "leg_insights": [
+                    {"ai_insight": "Minimal walking as preferred."},
+                    {"ai_insight": "Direct connection to destination."},
+                ],
+            }
+        ]
     }
 
     with patch.object(ai_service, "_get_client") as mock_get_client:
@@ -305,10 +317,11 @@ async def test_get_itinerary_insight_with_preferences(ai_service, sample_itinera
 
         # Verify the payload includes user preferences
         call_args = mock_client.post.call_args
-        assert call_args.args[0] == "/api/v1/insight/itinerary"
+        assert call_args.args[0] == "/api/v1/insight/iteneraries"
         payload = call_args.kwargs["json"]
         assert "user_preferences" in payload
-        assert payload["user_preferences"] == user_preferences
+        assert len(payload["user_preferences"]) == 2
+        assert payload["user_preferences"][0]["prompt"] == "prefer minimal walking"
 
         # Verify the itinerary was enriched
         assert sample_itinerary.ai_description == "This route is optimized for your preferences."
@@ -322,8 +335,15 @@ async def test_get_itinerary_insight_without_preferences(ai_service, sample_itin
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "ai_description": "A standard route.",
-        "ai_insights": ["Walk to bus stop.", "Take bus."],
+        "itenerary_insights": [
+            {
+                "ai_insight": "A standard route.",
+                "leg_insights": [
+                    {"ai_insight": "Walk to bus stop."},
+                    {"ai_insight": "Take bus."},
+                ],
+            }
+        ]
     }
 
     with patch.object(ai_service, "_get_client") as mock_get_client:
@@ -335,10 +355,10 @@ async def test_get_itinerary_insight_without_preferences(ai_service, sample_itin
 
         mock_client.post.assert_called_once()
 
-        # Verify the payload does NOT include user preferences
+        # Verify empty user_preferences list when None provided
         call_args = mock_client.post.call_args
         payload = call_args.kwargs["json"]
-        assert "user_preferences" not in payload
+        assert payload["user_preferences"] == []
 
         # Verify the itinerary was enriched
         assert sample_itinerary.ai_description == "A standard route."
@@ -347,7 +367,7 @@ async def test_get_itinerary_insight_without_preferences(ai_service, sample_itin
 
 
 @pytest.mark.asyncio
-async def test_get_itineraries_insights_success(ai_service, sample_itinerary):
+async def test_get_itineraries_insight_success(ai_service, sample_itinerary):
     """Test successful batch itineraries insights retrieval."""
     from app.schemas.preference import PreferenceBase
 
@@ -375,7 +395,7 @@ async def test_get_itineraries_insights_success(ai_service, sample_itinerary):
             PreferenceBase(prompt="avoid transfers"),
         ]
 
-        result = await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+        await ai_service.get_itineraries_insight([sample_itinerary], preferences)
 
         mock_client.post.assert_called_once()
 
@@ -383,15 +403,14 @@ async def test_get_itineraries_insights_success(ai_service, sample_itinerary):
         call_args = mock_client.post.call_args
         assert call_args.args[0] == "/api/v1/insight/iteneraries"
 
-        # Verify the response structure
-        assert len(result.itenerary_insights) == 1
-        assert result.itenerary_insights[0].ai_insight == "This route is efficient for commuting."
-        assert len(result.itenerary_insights[0].leg_insights) == 2
-        assert result.itenerary_insights[0].leg_insights[0].ai_insight == "Short walk to start."
+        # Verify the itinerary was enriched
+        assert sample_itinerary.ai_description == "This route is efficient for commuting."
+        assert sample_itinerary.legs[0].ai_insight == "Short walk to start."
+        assert sample_itinerary.legs[1].ai_insight == "Direct bus connection."
 
 
 @pytest.mark.asyncio
-async def test_get_itineraries_insights_non_200_response(ai_service, sample_itinerary):
+async def test_get_itineraries_insight_non_200_response(ai_service, sample_itinerary):
     """Test handling of non-200 response for batch itineraries insights."""
     from app.schemas.preference import PreferenceBase
 
@@ -405,14 +424,16 @@ async def test_get_itineraries_insights_non_200_response(ai_service, sample_itin
 
         preferences = [PreferenceBase(prompt="prefer minimal walking")]
 
-        with pytest.raises(Exception) as exc_info:
-            await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+        await ai_service.get_itineraries_insight([sample_itinerary], preferences)
 
-        assert "status 500" in str(exc_info.value)
+        # Itinerary should not be modified on error
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
+        assert sample_itinerary.legs[1].ai_insight is None
 
 
 @pytest.mark.asyncio
-async def test_get_itineraries_insights_timeout(ai_service, sample_itinerary):
+async def test_get_itineraries_insight_timeout(ai_service, sample_itinerary):
     """Test handling of timeout for batch itineraries insights."""
     from app.schemas.preference import PreferenceBase
 
@@ -423,7 +444,8 @@ async def test_get_itineraries_insights_timeout(ai_service, sample_itinerary):
 
         preferences = [PreferenceBase(prompt="prefer minimal walking")]
 
-        with pytest.raises(Exception) as exc_info:
-            await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+        await ai_service.get_itineraries_insight([sample_itinerary], preferences)
 
-        assert "timed out" in str(exc_info.value).lower()
+        # Itinerary should not be modified on timeout
+        assert sample_itinerary.ai_description is None
+        assert sample_itinerary.legs[0].ai_insight is None
