@@ -4,10 +4,7 @@ from typing import List, Optional
 import httpx
 
 from app.core.config import settings
-from app.schemas.ai_agents import (
-    ItineraryInsightRequest,
-    ItineraryInsightResponse,
-)
+from app.schemas.ai_agents import ItineraryInsightRequest, ItineraryInsightResponse
 from app.schemas.health import ServiceHealth
 from app.schemas.itinary import Itinerary
 from app.schemas.preference import PreferenceBase
