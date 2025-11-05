@@ -10,7 +10,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.geo import Coordinates
-from app.schemas.itinary import Itinerary
+from app.schemas.insight import ItineraryWithInsight
 
 
 class RouteSearchRequest(BaseModel):
@@ -43,5 +43,5 @@ class RouteSearchResponse(BaseModel):
 
     origin: Coordinates
     destination: Coordinates
-    itineraries: List[Itinerary] = Field(..., description="List of route itineraries")
+    itineraries: List[ItineraryWithInsight] = Field(..., description="List of route itineraries")
     search_time: datetime = Field(..., description="Time when the search was performed")

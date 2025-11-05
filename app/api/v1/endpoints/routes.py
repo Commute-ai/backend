@@ -6,13 +6,14 @@ Provides REST API for querying HSL public transport routes.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, List
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.user import User
+from app.schemas.insight import ItineraryWithInsight
 from app.schemas.routes import RouteSearchRequest, RouteSearchResponse
 from app.services.ai_agents_service import ai_agents_service
 from app.services.auth_service import auth_service
@@ -35,7 +36,7 @@ async def search_routes(
     request: RouteSearchRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_service.get_current_user),
-) -> Any:
+):
     """
     Search for public transport routes between two locations.
 
@@ -89,22 +90,22 @@ async def search_routes(
             first=request.num_itineraries,
         )
 
-        # Enhance each itinerary with AI insights (with graceful degradation)
-        for itinerary in itineraries:
-            try:
-                await ai_agents_service.get_itinerary_insight(
-                    itinerary, user_preferences if user_preferences else None
-                )
-            except Exception as e:  # pylint: disable=broad-except
-                # Gracefully degrade - log warning but continue without AI insights
-                logger.warning("Failed to get AI insights for itinerary: %s", str(e))
+        itineraries_with_insights: list[ItineraryWithInsight] = []
+        try:
+            itineraries_with_insights = await ai_agents_service.get_itineraries_with_insights(
+                itineraries, user_preferences if user_preferences else None
+            )
+
+        except Exception as e:  # pylint: disable=broad-except
+            # Gracefully degrade - log warning but continue without AI insights
+            logger.warning("Failed to get AI insights for itinerary: %s", str(e))
 
         logger.info("Route search successful: found %d itineraries", len(itineraries))
 
         return RouteSearchResponse(
             origin=request.origin,
             destination=request.destination,
-            itineraries=itineraries,
+            itineraries=itineraries_with_insights,
             search_time=datetime.now(timezone.utc),
         )
 
