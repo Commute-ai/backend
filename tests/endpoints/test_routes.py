@@ -172,7 +172,7 @@ def test_search_routes_success(db: Session, client: TestClient, sample_itinerari
         assert "destination" in data
         assert "itineraries" in data
         assert "search_time" in data
-        # ai_description is optional, may or may not be present
+        # ai_insight is optional, may or may not be present
 
         # Verify origin and destination
         assert data["origin"]["latitude"] == 60.1699
@@ -455,8 +455,8 @@ def test_search_routes_valid_edge_coordinates(db: Session, client: TestClient, s
             assert response.status_code == 200
 
 
-def test_search_routes_without_ai_description(db: Session, client: TestClient, sample_itineraries):
-    """Test that route response works without ai_description in itinerary (graceful degradation)."""
+def test_search_routes_without_ai_insight(db: Session, client: TestClient, sample_itineraries):
+    """Test that route response works without ai_insight in itinerary (graceful degradation)."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
 
@@ -475,21 +475,33 @@ def test_search_routes_without_ai_description(db: Session, client: TestClient, s
         assert response.status_code == 200
         data = response.json()
 
-        # Verify ai_description is not in the response (removed from RouteSearchResponse)
-        assert "ai_description" not in data
-        # But it should be in each itinerary
-        assert "ai_description" in data["itineraries"][0]
+        # Verify ai_insight is not in the response (removed from RouteSearchResponse)
+        assert "ai_insight" not in data
+        # When AI service is not available, itineraries should not have ai_insight
+        assert "ai_insight" not in data["itineraries"][0]
 
 
-def test_search_routes_with_ai_description(db: Session, client: TestClient, sample_itineraries):
-    """Test that itinerary schema validates correctly when ai_description is provided."""
+def test_search_routes_with_ai_insight(db: Session, client: TestClient, sample_itineraries):
+    """Test that itinerary schema validates correctly when ai_insight is provided."""
     # Test the schema validation directly
     from app.schemas.geo import Coordinates
+    from app.schemas.insight import ItineraryWithInsight, LegWithInsight
     from app.schemas.routes import RouteSearchResponse
 
-    # Schema should validate with ai_description in itinerary
-    itinerary_with_description = sample_itineraries[0]
-    itinerary_with_description.ai_description = "This is a fast route with minimal walking."
+    # Create ItineraryWithInsight objects
+    itinerary = sample_itineraries[0]
+    legs_with_insights = []
+    for leg in itinerary.legs:
+        leg_with_insight = LegWithInsight(**leg.model_dump(), ai_insight="Leg insight")
+        legs_with_insights.append(leg_with_insight)
+
+    itinerary_data = itinerary.model_dump()
+    itinerary_data.pop("legs")
+    itinerary_with_description = ItineraryWithInsight(
+        **itinerary_data,
+        ai_insight="This is a fast route with minimal walking.",
+        legs=legs_with_insights,
+    )
 
     response_data = RouteSearchResponse(
         origin=Coordinates(latitude=60.1699, longitude=24.9384),
@@ -497,21 +509,18 @@ def test_search_routes_with_ai_description(db: Session, client: TestClient, samp
         itineraries=[itinerary_with_description],
         search_time=datetime.now(timezone.utc),
     )
-    assert (
-        response_data.itineraries[0].ai_description == "This is a fast route with minimal walking."
-    )
+    assert response_data.itineraries[0].ai_insight == "This is a fast route with minimal walking."
 
-    # Schema should validate without ai_description
+    # Schema should validate without ai_insight
     response_data_no_ai = RouteSearchResponse(
         origin=Coordinates(latitude=60.1699, longitude=24.9384),
         destination=Coordinates(latitude=60.2055, longitude=24.6559),
         itineraries=sample_itineraries,
         search_time=datetime.now(timezone.utc),
     )
-    # ai_description field removed from RouteSearchResponse
-    assert not hasattr(response_data_no_ai, "ai_description") or (
-        hasattr(response_data_no_ai, "ai_description")
-        and response_data_no_ai.ai_description is None
+    # ai_insight field removed from RouteSearchResponse
+    assert not hasattr(response_data_no_ai, "ai_insight") or (
+        hasattr(response_data_no_ai, "ai_insight") and response_data_no_ai.ai_insight is None
     )
 
 
@@ -526,16 +535,36 @@ def test_search_routes_with_ai_insights_success(
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to enrich itinerary in place
-            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
-                itinerary.ai_description = (
-                    "This route offers a good balance of walking and public transport."
-                )
-                itinerary.legs[0].ai_insight = "Short walk to the bus stop."
-                itinerary.legs[1].ai_insight = "Express bus with comfortable seats."
+            # Create itineraries with insights
+            from app.schemas.insight import ItineraryWithInsight, LegWithInsight
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight
+            itineraries_with_insights = []
+            for itinerary in sample_itineraries:
+                legs_with_insights = []
+                for i, leg in enumerate(itinerary.legs):
+                    leg_with_insight = LegWithInsight(
+                        **leg.model_dump(),
+                        ai_insight=(
+                            "Short walk to the bus stop."
+                            if i == 0
+                            else "Express bus with comfortable seats."
+                        ),
+                    )
+                    legs_with_insights.append(leg_with_insight)
+
+                itinerary_data = itinerary.model_dump()
+                itinerary_data.pop("legs")  # Remove legs from dump since we're providing our own
+                itinerary_with_insights = ItineraryWithInsight(
+                    **itinerary_data,
+                    ai_insight=(
+                        "This route offers a good balance of walking and public transport."
+                    ),
+                    legs=legs_with_insights,
+                )
+                itineraries_with_insights.append(itinerary_with_insights)
+
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                return_value=itineraries_with_insights
             )
 
             response = client.post(
@@ -561,13 +590,13 @@ def test_search_routes_with_ai_insights_success(
             # Check second leg (BUS)
             assert itinerary["legs"][1]["ai_insight"] == "Express bus with comfortable seats."
 
-            # Verify AI description for the itinerary
+            # Verify AI insight for the itinerary
             assert (
-                itinerary["ai_description"]
+                itinerary["ai_insight"]
                 == "This route offers a good balance of walking and public transport."
             )
             # Verify AI service was called for itinerary insight
-            assert mock_ai_service.get_itinerary_insight.call_count == 1
+            assert mock_ai_service.get_itineraries_with_insights.call_count == 1
 
 
 def test_search_routes_with_ai_service_unavailable(
@@ -581,14 +610,8 @@ def test_search_routes_with_ai_service_unavailable(
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to do nothing (service unavailable)
-            async def mock_get_itinerary_insight_unavailable(itinerary, user_preferences=None):
-                # Service unavailable - does not modify itinerary
-                pass
-
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight_unavailable
-            )
+            # Mock AI service to return empty list (service unavailable)
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(return_value=[])
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -608,11 +631,11 @@ def test_search_routes_with_ai_service_unavailable(
             itinerary = data["itineraries"][0]
             assert len(itinerary["legs"]) == 2
 
-            # AI insights should be None
-            assert itinerary["legs"][0]["ai_insight"] is None
-            assert itinerary["legs"][1]["ai_insight"] is None
-            # AI description should be None
-            assert itinerary["ai_description"] is None
+            # AI insights should not be present when service is unavailable
+            assert "ai_insight" not in itinerary["legs"][0]
+            assert "ai_insight" not in itinerary["legs"][1]
+            # AI insight should not be present when service is unavailable
+            assert "ai_insight" not in itinerary
 
 
 def test_search_routes_with_ai_service_partial_failure(
@@ -626,13 +649,30 @@ def test_search_routes_with_ai_service_partial_failure(
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Mock AI service to provide partial data
-            async def mock_get_itinerary_insight_partial(itinerary, user_preferences=None):
-                # Only set description, not leg insights
-                itinerary.ai_description = "This is a good route."
+            # Create itineraries with partial insights (only description, no leg insights)
+            from app.schemas.insight import ItineraryWithInsight, LegWithInsight
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight_partial
+            itineraries_with_insights = []
+            for itinerary in sample_itineraries:
+                # Create legs without insights (empty strings)
+                legs_with_insights = []
+                for leg in itinerary.legs:
+                    leg_with_insight = LegWithInsight(
+                        **leg.model_dump(), ai_insight=""  # Partial failure - no leg insights
+                    )
+                    legs_with_insights.append(leg_with_insight)
+
+                itinerary_data = itinerary.model_dump()
+                itinerary_data.pop("legs")  # Remove legs from dump since we're providing our own
+                itinerary_with_insights = ItineraryWithInsight(
+                    **itinerary_data,
+                    ai_insight="This is a good route.",
+                    legs=legs_with_insights,
+                )
+                itineraries_with_insights.append(itinerary_with_insights)
+
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                return_value=itineraries_with_insights
             )
 
             response = client.post(
@@ -647,10 +687,10 @@ def test_search_routes_with_ai_service_partial_failure(
             assert response.status_code == 200
             data = response.json()
 
-            # Verify itinerary has description but legs don't have insights
-            assert data["itineraries"][0]["ai_description"] == "This is a good route."
-            assert data["itineraries"][0]["legs"][0]["ai_insight"] is None
-            assert data["itineraries"][0]["legs"][1]["ai_insight"] is None
+            # Verify itinerary has insight but legs have empty insights (partial failure)
+            assert data["itineraries"][0]["ai_insight"] == "This is a good route."
+            assert data["itineraries"][0]["legs"][0]["ai_insight"] == ""
+            assert data["itineraries"][0]["legs"][1]["ai_insight"] == ""
 
 
 def test_search_routes_with_ai_service_exception(
@@ -665,7 +705,7 @@ def test_search_routes_with_ai_service_exception(
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
             # Mock AI service to raise an exception
-            mock_ai_service.get_itinerary_insight = AsyncMock(
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
                 side_effect=Exception("AI service error")
             )
 
@@ -687,17 +727,19 @@ def test_search_routes_with_ai_service_exception(
             itinerary = data["itineraries"][0]
             assert len(itinerary["legs"]) == 2
 
-            # AI insights should be None due to graceful degradation
-            assert itinerary["legs"][0]["ai_insight"] is None
-            assert itinerary["legs"][1]["ai_insight"] is None
-            # AI description should be None due to graceful degradation
-            assert itinerary["ai_description"] is None
+            # AI insights should not be present due to graceful degradation
+            assert "ai_insight" not in itinerary["legs"][0]
+            assert "ai_insight" not in itinerary["legs"][1]
+            # AI insight should not be present due to graceful degradation
+            assert "ai_insight" not in itinerary
 
 
 def test_leg_schema_with_ai_insight():
-    """Test that Leg schema correctly handles ai_insight field."""
+    """Test that LegWithInsight schema correctly handles ai_insight field."""
+    from app.schemas.insight import LegWithInsight
+
     # Test leg with ai_insight
-    leg_with_insight = Leg(
+    leg_with_insight = LegWithInsight(
         mode=TransportMode.BUS,
         start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
         end=datetime(2025, 10, 14, 10, 30, 0, tzinfo=timezone.utc),
@@ -720,7 +762,7 @@ def test_leg_schema_with_ai_insight():
     )
     assert leg_with_insight.ai_insight == "This is an AI-generated insight about the leg."
 
-    # Test leg without ai_insight
+    # Test leg without ai_insight (regular Leg object)
     leg_without_insight = Leg(
         mode=TransportMode.WALK,
         start=datetime(2025, 10, 14, 10, 0, 0, tzinfo=timezone.utc),
@@ -736,4 +778,5 @@ def test_leg_schema_with_ai_insight():
             name="End",
         ),
     )
-    assert leg_without_insight.ai_insight is None
+    # Regular Leg objects don't have ai_insight attribute
+    assert not hasattr(leg_without_insight, "ai_insight")
