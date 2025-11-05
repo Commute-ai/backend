@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 
@@ -7,11 +7,14 @@ from app.core.config import settings
 from app.schemas.ai_agents import (
     ItineraryInsightRequest,
     ItineraryInsightResponse,
+    ItineraryInsightsRequest,
+    ItineraryInsightsResponse,
     LegInsightData,
     RouteInsightData,
 )
 from app.schemas.health import ServiceHealth
 from app.schemas.itinary import Itinerary
+from app.schemas.preference import PreferenceBase
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +157,55 @@ class AiAgentsService:
             logger.warning("AI agents service request timed out for itinerary insight")
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("Failed to get AI itinerary insight: %s", str(e))
+
+    async def get_itineraries_insights(
+        self, itineraries: List[Itinerary], user_preferences: List[PreferenceBase]
+    ) -> ItineraryInsightsResponse:
+        """
+        Get AI-generated insights for multiple itineraries.
+
+        This method sends multiple itineraries to the AI service and receives back
+        insights for each itinerary and their constituent legs.
+
+        Args:
+            itineraries: List of itinerary objects to analyze
+            user_preferences: List of user preference objects to consider
+
+        Returns:
+            ItineraryInsightsResponse containing insights for all itineraries
+
+        Raises:
+            Exception: Raises exceptions on failure for proper error handling
+        """
+        try:
+            client = self._get_client()
+
+            # Prepare request payload with itineraries information
+            request_data = ItineraryInsightsRequest(
+                itineraries=itineraries,
+                user_preferences=user_preferences,
+            )
+
+            response = await client.post(
+                "/api/v1/insight/iteneraries", json=request_data.model_dump(mode="json")
+            )
+
+            if response.status_code == 200:
+                response_data = ItineraryInsightsResponse(**response.json())
+                return response_data
+
+            logger.error(
+                "AI agents service returned non-200 status for itineraries insights: %s",
+                response.status_code,
+            )
+            raise Exception(f"AI agents service returned status {response.status_code}")
+
+        except httpx.TimeoutException as e:
+            logger.error("AI agents service request timed out for itineraries insights")
+            raise Exception("AI agents service request timed out") from e
+        except Exception as e:
+            logger.error("Failed to get AI itineraries insights: %s", str(e))
+            raise
 
 
 # Singleton instance for dependency injection

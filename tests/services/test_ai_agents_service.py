@@ -344,3 +344,86 @@ async def test_get_itinerary_insight_without_preferences(ai_service, sample_itin
         assert sample_itinerary.ai_description == "A standard route."
         assert sample_itinerary.legs[0].ai_insight == "Walk to bus stop."
         assert sample_itinerary.legs[1].ai_insight == "Take bus."
+
+
+@pytest.mark.asyncio
+async def test_get_itineraries_insights_success(ai_service, sample_itinerary):
+    """Test successful batch itineraries insights retrieval."""
+    from app.schemas.preference import PreferenceBase
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "itenerary_insights": [
+            {
+                "ai_insight": "This route is efficient for commuting.",
+                "leg_insights": [
+                    {"ai_insight": "Short walk to start."},
+                    {"ai_insight": "Direct bus connection."},
+                ],
+            }
+        ]
+    }
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        preferences = [
+            PreferenceBase(prompt="prefer minimal walking"),
+            PreferenceBase(prompt="avoid transfers"),
+        ]
+
+        result = await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+
+        mock_client.post.assert_called_once()
+
+        # Verify the payload structure
+        call_args = mock_client.post.call_args
+        assert call_args.args[0] == "/api/v1/insight/iteneraries"
+
+        # Verify the response structure
+        assert len(result.itenerary_insights) == 1
+        assert result.itenerary_insights[0].ai_insight == "This route is efficient for commuting."
+        assert len(result.itenerary_insights[0].leg_insights) == 2
+        assert result.itenerary_insights[0].leg_insights[0].ai_insight == "Short walk to start."
+
+
+@pytest.mark.asyncio
+async def test_get_itineraries_insights_non_200_response(ai_service, sample_itinerary):
+    """Test handling of non-200 response for batch itineraries insights."""
+    from app.schemas.preference import PreferenceBase
+
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_get_client.return_value = mock_client
+
+        preferences = [PreferenceBase(prompt="prefer minimal walking")]
+
+        with pytest.raises(Exception) as exc_info:
+            await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+
+        assert "status 500" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_get_itineraries_insights_timeout(ai_service, sample_itinerary):
+    """Test handling of timeout for batch itineraries insights."""
+    from app.schemas.preference import PreferenceBase
+
+    with patch.object(ai_service, "_get_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_get_client.return_value = mock_client
+
+        preferences = [PreferenceBase(prompt="prefer minimal walking")]
+
+        with pytest.raises(Exception) as exc_info:
+            await ai_service.get_itineraries_insights([sample_itinerary], preferences)
+
+        assert "timed out" in str(exc_info.value).lower()
