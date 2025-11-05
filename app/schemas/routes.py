@@ -5,11 +5,12 @@ Pydantic models for route search API endpoint.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
 from app.schemas.geo import Coordinates
+from app.schemas.insight import ItineraryWithInsight
 from app.schemas.itinary import Itinerary
 
 
@@ -43,5 +44,7 @@ class RouteSearchResponse(BaseModel):
 
     origin: Coordinates
     destination: Coordinates
-    itineraries: List[Itinerary] = Field(..., description="List of route itineraries")
+    itineraries: List[Union[Itinerary, ItineraryWithInsight]] = Field(
+        ..., description="List of route itineraries"
+    )
     search_time: datetime = Field(..., description="Time when the search was performed")

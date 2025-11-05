@@ -98,14 +98,29 @@ def test_search_routes_with_request_preferences(
         with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
             mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
 
-            # Track the call to verify preferences are passed
-            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
-                # Store preferences for verification
-                mock_get_itinerary_insight.called_with_prefs = user_preferences
-                itinerary.ai_description = "Route optimized based on preferences"
+            # Create itineraries with insights
+            from app.schemas.insight import ItineraryWithInsight, LegWithInsight
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight
+            itineraries_with_insights = []
+            for itinerary in sample_itineraries:
+                legs_with_insights = []
+                for leg in itinerary.legs:
+                    leg_with_insight = LegWithInsight(
+                        **leg.model_dump(), ai_insight="Optimized leg insight"
+                    )
+                    legs_with_insights.append(leg_with_insight)
+
+                itinerary_data = itinerary.model_dump()
+                itinerary_data.pop("legs")  # Remove legs from dump since we're providing our own
+                itinerary_with_insights = ItineraryWithInsight(
+                    **itinerary_data,
+                    ai_insight="Route optimized based on preferences",
+                    legs=legs_with_insights,
+                )
+                itineraries_with_insights.append(itinerary_with_insights)
+
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                return_value=itineraries_with_insights
             )
 
             response = client.post(
@@ -123,9 +138,9 @@ def test_search_routes_with_request_preferences(
             assert len(data["itineraries"]) == 1
 
             # Verify AI service was called with preferences
-            mock_ai_service.get_itinerary_insight.assert_called_once()
-            call_args = mock_ai_service.get_itinerary_insight.call_args
-            assert call_args.args[0] == sample_itineraries[0]
+            mock_ai_service.get_itineraries_with_insights.assert_called_once()
+            call_args = mock_ai_service.get_itineraries_with_insights.call_args
+            assert call_args.args[0] == sample_itineraries
             assert call_args.args[1] == ["prefer walking", "avoid crowded buses"]
 
 
@@ -151,12 +166,11 @@ def test_search_routes_with_authenticated_user_preferences(
                 # Track the call to verify preferences are passed
                 captured_preferences = []
 
-                async def mock_get_itinerary_insight(itinerary, user_preferences=None):
+                def mock_get_itineraries_with_insights(itineraries, user_preferences=None):
                     captured_preferences.append(user_preferences)
-                    itinerary.ai_description = "Route optimized for user"
 
-                mock_ai_service.get_itinerary_insight = AsyncMock(
-                    side_effect=mock_get_itinerary_insight
+                mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                    side_effect=mock_get_itineraries_with_insights
                 )
 
                 response = client.post(
@@ -192,12 +206,11 @@ def test_search_routes_with_request_only_preferences(
             # Track the call to verify preferences
             captured_preferences = []
 
-            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
+            def mock_get_itineraries_with_insights(itineraries, user_preferences=None):
                 captured_preferences.append(user_preferences)
-                itinerary.ai_description = "Route optimized"
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                side_effect=mock_get_itineraries_with_insights
             )
 
             response = client.post(
@@ -233,12 +246,11 @@ def test_search_routes_without_preferences(db: Session, client: TestClient, samp
             # Track the call to verify no preferences are passed
             captured_preferences = []
 
-            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
+            def mock_get_itineraries_with_insights(itineraries, user_preferences=None):
                 captured_preferences.append(user_preferences)
-                itinerary.ai_description = "Generic route description"
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                side_effect=mock_get_itineraries_with_insights
             )
 
             response = client.post(
@@ -273,12 +285,11 @@ def test_search_routes_preference_service_graceful_degradation(
             # Track the call to verify preferences handling
             captured_preferences = []
 
-            async def mock_get_itinerary_insight(itinerary, user_preferences=None):
+            def mock_get_itineraries_with_insights(itineraries, user_preferences=None):
                 captured_preferences.append(user_preferences)
-                itinerary.ai_description = "Route description"
 
-            mock_ai_service.get_itinerary_insight = AsyncMock(
-                side_effect=mock_get_itinerary_insight
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                side_effect=mock_get_itineraries_with_insights
             )
 
             response = client.post(

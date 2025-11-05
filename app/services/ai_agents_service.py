@@ -1,19 +1,24 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
+from pydantic import BaseModel
 
 from app.core.config import settings
-from app.schemas.ai_agents import (
-    ItineraryInsightRequest,
-    ItineraryInsightResponse,
-    LegInsightData,
-    RouteInsightData,
-)
 from app.schemas.health import ServiceHealth
+from app.schemas.insight import ItineraryInsight, ItineraryWithInsight, LegWithInsight
 from app.schemas.itinary import Itinerary
 
 logger = logging.getLogger(__name__)
+
+
+class ItinerariesInsightRequest(BaseModel):
+    itineraries: list[Itinerary]
+    user_preferences: list[Any] | None = None
+
+
+class ItinerariesInsightResponse(BaseModel):
+    itinerary_insights: list[ItineraryInsight]
 
 
 class AiAgentsService:
@@ -71,89 +76,82 @@ class AiAgentsService:
                 message=f"AI-agents API check failed: {str(e)}",
             )
 
-    async def get_itinerary_insight(
-        self, itinerary: Itinerary, user_preferences: Optional[list] = None
-    ) -> None:
+    async def get_itineraries_with_insights(
+        self, itineraries: list[Itinerary], user_preferences: Optional[list] = None
+    ) -> list[ItineraryWithInsight]:
         """
-        Get AI-generated insights for a complete itinerary and enrich it with AI data.
-
-        This method sends the entire itinerary to the AI service and receives back:
-        - ai_description: Overall description of the itinerary
-        - ai_insights: List of insights for each leg
-
-        The method directly modifies the itinerary object in place, setting:
-        - itinerary.ai_description
-        - leg.ai_insight for each leg
-
-        Args:
-            itinerary: The itinerary object containing the complete journey information
-            user_preferences: Optional list of user preference strings to consider
-
-        Returns:
-            None - modifies the itinerary object in place
-
-        Raises:
-            No exceptions - gracefully degrades by returning without modification on errors
+        Takes itineraries and returns AI-generated insights for each leg and each itineraries.
         """
         try:
             client = self._get_client()
 
             # Prepare request payload with itinerary information
-            request_data = ItineraryInsightRequest(
-                start=itinerary.start.isoformat(),
-                end=itinerary.end.isoformat(),
-                duration=itinerary.duration,
-                walk_distance=itinerary.walk_distance,
-                walk_time=itinerary.walk_time,
-                legs=[
-                    LegInsightData(
-                        mode=leg.mode.value,
-                        duration=leg.duration,
-                        distance=leg.distance,
-                        from_place=leg.from_place.name or "",
-                        to_place=leg.to_place.name or "",
-                        route=(
-                            RouteInsightData(
-                                short_name=leg.route.short_name,
-                                long_name=leg.route.long_name,
-                            )
-                            if leg.route
-                            else None
-                        ),
-                    )
-                    for leg in itinerary.legs
-                ],
+            request_data = ItinerariesInsightRequest(
+                itineraries=itineraries,
                 user_preferences=user_preferences,
             )
 
             response = await client.post(
-                "/api/v1/insight/itinerary", json=request_data.model_dump(exclude_none=True)
+                "/insight/itineraries",
+                json=request_data.model_dump(exclude_none=True),
             )
 
             if response.status_code == 200:
-                response_data = ItineraryInsightResponse(**response.json())
+                response_data = ItinerariesInsightResponse(**response.json())
 
-                # Set the itinerary-level AI description
-                itinerary.ai_description = response_data.ai_description
-
-                # Set AI insights for each leg
-                for idx, leg in enumerate(itinerary.legs):
-                    if idx < len(response_data.ai_insights):
-                        leg.ai_insight = response_data.ai_insights[idx]
-                    else:
-                        leg.ai_insight = None
-
-                return
+                return self._parse_itineraries_with_insights(
+                    itineraries,
+                    response_data.itinerary_insights,
+                )
 
             logger.warning(
                 "AI agents service returned non-200 status for itinerary insight: %s",
                 response.status_code,
             )
-
         except httpx.TimeoutException:
             logger.warning("AI agents service request timed out for itinerary insight")
+            return []
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("Failed to get AI itinerary insight: %s", str(e))
+
+        return []
+
+    def _parse_itineraries_with_insights(
+        self,
+        itineraries: list[Itinerary],
+        itinerary_insights: list[ItineraryInsight],
+    ) -> list[ItineraryWithInsight]:
+        """
+        Combine itineraries with their corresponding AI-generated insights.
+        """
+        itineraries_with_insights = []
+        for itinerary, itinerary_insight in zip(itineraries, itinerary_insights):
+            itineraries_with_insights.append(
+                self._parse_itinerary_with_insight(itinerary, itinerary_insight)
+            )
+        return itineraries_with_insights
+
+    def _parse_itinerary_with_insight(
+        self,
+        itinerary: Itinerary,
+        itinerary_insight: ItineraryInsight,
+    ) -> ItineraryWithInsight:
+        """
+        Combine itinerary data with AI-generated insights into a single object.
+        """
+        legs_with_insights = []
+        for leg, leg_insight in zip(itinerary.legs, itinerary_insight.leg_insights):
+            legs_with_insights.append(
+                LegWithInsight(**leg.model_dump(), ai_insight=leg_insight.ai_insight)
+            )
+
+        itinerary_data = itinerary.model_dump()
+        itinerary_data.pop("legs")  # Remove legs since we're providing our own
+        return ItineraryWithInsight(
+            **itinerary_data,
+            ai_insight=itinerary_insight.ai_insight,
+            legs=legs_with_insights,
+        )
 
 
 # Singleton instance for dependency injection
