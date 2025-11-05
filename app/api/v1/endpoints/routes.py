@@ -6,7 +6,7 @@ Provides REST API for querying HSL public transport routes.
 
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.user import User
 from app.schemas.insight import ItineraryWithInsight
+from app.schemas.itinary import Itinerary
 from app.schemas.routes import RouteSearchRequest, RouteSearchResponse
 from app.services.ai_agents_service import ai_agents_service
 from app.services.auth_service import auth_service
@@ -90,22 +91,28 @@ async def search_routes(
             first=request.num_itineraries,
         )
 
-        itineraries_with_insights: list[ItineraryWithInsight] = []
+        # Try to get AI insights for all itineraries
         try:
             itineraries_with_insights = await ai_agents_service.get_itineraries_with_insights(
                 itineraries, user_preferences if user_preferences else None
+            )
+            final_itineraries = (
+                cast(list[Itinerary | ItineraryWithInsight], itineraries_with_insights)
+                if itineraries_with_insights
+                else itineraries
             )
 
         except Exception as e:  # pylint: disable=broad-except
             # Gracefully degrade - log warning but continue without AI insights
             logger.warning("Failed to get AI insights for itinerary: %s", str(e))
+            final_itineraries = itineraries
 
         logger.info("Route search successful: found %d itineraries", len(itineraries))
 
         return RouteSearchResponse(
             origin=request.origin,
             destination=request.destination,
-            itineraries=itineraries_with_insights,
+            itineraries=final_itineraries,
             search_time=datetime.now(timezone.utc),
         )
 

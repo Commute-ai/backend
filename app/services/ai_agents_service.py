@@ -145,8 +145,10 @@ class AiAgentsService:
                 LegWithInsight(**leg.model_dump(), ai_insight=leg_insight.ai_insight)
             )
 
+        itinerary_data = itinerary.model_dump()
+        itinerary_data.pop("legs")  # Remove legs since we're providing our own
         return ItineraryWithInsight(
-            **itinerary.model_dump(),
+            **itinerary_data,
             ai_insight=itinerary_insight.ai_insight,
             legs=legs_with_insights,
         )
