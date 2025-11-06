@@ -43,7 +43,9 @@ class UserService:
         return db.query(User).filter(User.id == user_id).first()
 
     @classmethod
-    def create_user(cls, db: Session, user_in: UserCreate, hashed_password: str) -> User:
+    def create_user(
+        cls, db: Session, user_in: UserCreate, hashed_password: str
+    ) -> User:
         """
         Create a new user in the database.
 

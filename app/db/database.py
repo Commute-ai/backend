@@ -30,6 +30,10 @@ def health_check(db: Session) -> ServiceHealth:
                 healthy=True,
                 message="Database connection successful",
             )
-        return ServiceHealth(healthy=False, message="Database query returned unexpected result")
+        return ServiceHealth(
+            healthy=False, message="Database query returned unexpected result"
+        )
     except Exception as e:  # pylint: disable=broad-except
-        return ServiceHealth(healthy=False, message=f"Database connection failed: {str(e)}")
+        return ServiceHealth(
+            healthy=False, message=f"Database connection failed: {str(e)}"
+        )

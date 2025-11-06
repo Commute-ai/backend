@@ -17,12 +17,17 @@ from app.schemas.itinary import Itinerary
 class RouteSearchRequest(BaseModel):
     """Request schema for route search endpoint."""
 
-    origin: Coordinates = Field(..., description="Starting location coordinates")
-    destination: Coordinates = Field(..., description="Destination location coordinates")
+    origin: Coordinates = Field(
+        ..., description="Starting location coordinates"
+    )
+    destination: Coordinates = Field(
+        ..., description="Destination location coordinates"
+    )
     earliest_departure: Optional[datetime] = Field(
         None,
         description=(
-            "Earliest departure time (ISO format). " "Defaults to current time if not provided."
+            "Earliest departure time (ISO format). "
+            "Defaults to current time if not provided."
         ),
     )
     num_itineraries: int = Field(
@@ -34,7 +39,8 @@ class RouteSearchRequest(BaseModel):
     preferences: Optional[List[str]] = Field(
         default=None,
         description=(
-            "User preferences for route optimization " "(e.g., 'prefer walking', 'avoid buses')"
+            "User preferences for route optimization "
+            "(e.g., 'prefer walking', 'avoid buses')"
         ),
     )
 
@@ -47,4 +53,6 @@ class RouteSearchResponse(BaseModel):
     itineraries: List[Union[Itinerary, ItineraryWithInsight]] = Field(
         ..., description="List of route itineraries"
     )
-    search_time: datetime = Field(..., description="Time when the search was performed")
+    search_time: datetime = Field(
+        ..., description="Time when the search was performed"
+    )

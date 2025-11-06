@@ -29,9 +29,15 @@ class TransportMode(str, Enum):
 class Route(BaseModel):
     """Route information for a leg of the journey."""
 
-    short_name: str = Field(..., description="Short name of the route, e.g., bus number")
-    long_name: str = Field(..., description="Long name of the route, e.g., full route name")
-    description: Optional[str] = Field(..., description="Description of the route")
+    short_name: str = Field(
+        ..., description="Short name of the route, e.g., bus number"
+    )
+    long_name: str = Field(
+        ..., description="Long name of the route, e.g., full route name"
+    )
+    description: Optional[str] = Field(
+        ..., description="Description of the route"
+    )
 
 
 class Leg(BaseModel):
@@ -53,6 +59,8 @@ class Itinerary(BaseModel):
     start: datetime
     end: datetime
     duration: int = Field(..., description="Total duration in seconds")
-    walk_distance: float = Field(..., description="Total walking distance in meters")
+    walk_distance: float = Field(
+        ..., description="Total walking distance in meters"
+    )
     walk_time: int = Field(..., description="Total walking time in seconds")
     legs: List[Leg]

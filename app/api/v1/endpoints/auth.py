@@ -14,7 +14,9 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=Token)
-async def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> Any:
+async def register_user(
+    user_in: UserCreate, db: Session = Depends(get_db)
+) -> Any:
     """
     Register a new user.
     """
@@ -32,13 +34,16 @@ async def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> A
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
+    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
     # Authenticate user
-    user = auth_service.authenticate_user(db, form_data.username, form_data.password)
+    user = auth_service.authenticate_user(
+        db, form_data.username, form_data.password
+    )
 
     if not user:
         raise HTTPException(

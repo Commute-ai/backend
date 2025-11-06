@@ -29,7 +29,11 @@ LOGGING_CONFIG = {
         "handlers": ["default"],
     },
     "loggers": {
-        "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn": {
+            "handlers": ["default"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "uvicorn.error": {"level": "INFO"},
         "uvicorn.access": {"level": "INFO"},
     },

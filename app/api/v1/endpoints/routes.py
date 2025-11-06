@@ -64,7 +64,9 @@ async def search_routes(
     )
 
     # Use current time if earliest_departure not provided
-    earliest_departure = request.earliest_departure or datetime.now(timezone.utc)
+    earliest_departure = request.earliest_departure or datetime.now(
+        timezone.utc
+    )
 
     # Collect user preferences from multiple sources
     user_preferences: List[str] = []
@@ -75,12 +77,16 @@ async def search_routes(
 
     # 2. Add stored preferences from authenticated user
     try:
-        stored_prefs = preference_service.get_user_preferences(db, int(current_user.id))
+        stored_prefs = preference_service.get_user_preferences(
+            db, int(current_user.id)
+        )
         user_preferences.extend([str(pref.prompt) for pref in stored_prefs])
     except Exception as e:  # pylint: disable=broad-except
         logger.warning("Failed to fetch user preferences: %s", str(e))
 
-    logger.info("Using %d user preferences for route insights", len(user_preferences))
+    logger.info(
+        "Using %d user preferences for route insights", len(user_preferences)
+    )
 
     try:
         # Call routing service to fetch itineraries from HSL API
@@ -93,21 +99,30 @@ async def search_routes(
 
         # Try to get AI insights for all itineraries
         try:
-            itineraries_with_insights = await ai_agents_service.get_itineraries_with_insights(
-                itineraries, user_preferences if user_preferences else None
+            itineraries_with_insights = (
+                await ai_agents_service.get_itineraries_with_insights(
+                    itineraries, user_preferences if user_preferences else None
+                )
             )
             final_itineraries = (
-                cast(list[Itinerary | ItineraryWithInsight], itineraries_with_insights)
+                cast(
+                    list[Itinerary | ItineraryWithInsight],
+                    itineraries_with_insights,
+                )
                 if itineraries_with_insights
                 else itineraries
             )
 
         except Exception as e:  # pylint: disable=broad-except
             # Gracefully degrade - log warning but continue without AI insights
-            logger.warning("Failed to get AI insights for itinerary: %s", str(e))
+            logger.warning(
+                "Failed to get AI insights for itinerary: %s", str(e)
+            )
             final_itineraries = itineraries
 
-        logger.info("Route search successful: found %d itineraries", len(itineraries))
+        logger.info(
+            "Route search successful: found %d itineraries", len(itineraries)
+        )
 
         return RouteSearchResponse(
             origin=request.origin,
