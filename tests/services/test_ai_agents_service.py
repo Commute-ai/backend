@@ -105,7 +105,9 @@ async def test_health_check_timeout(ai_service):
     """Test health check with timeout."""
     with patch.object(ai_service, "_get_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        mock_client.get = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
         mock_get_client.return_value = mock_client
 
         health = await ai_service.health_check()
@@ -145,11 +147,15 @@ def sample_itinerary():
                 duration=600,
                 distance=500.0,
                 from_place=Place(
-                    coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+                    coordinates=Coordinates(
+                        latitude=60.1699, longitude=24.9384
+                    ),
                     name="Origin",
                 ),
                 to_place=Place(
-                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    coordinates=Coordinates(
+                        latitude=60.1710, longitude=24.9400
+                    ),
                     name="Bus Stop",
                 ),
                 route=None,
@@ -161,11 +167,15 @@ def sample_itinerary():
                 duration=2100,
                 distance=15000.0,
                 from_place=Place(
-                    coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                    coordinates=Coordinates(
+                        latitude=60.1710, longitude=24.9400
+                    ),
                     name="Bus Stop",
                 ),
                 to_place=Place(
-                    coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+                    coordinates=Coordinates(
+                        latitude=60.2055, longitude=24.6559
+                    ),
                     name="Destination",
                 ),
                 route=Route(

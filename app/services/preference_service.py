@@ -29,7 +29,9 @@ class PreferenceService:
         return db.query(Preference).filter(Preference.user_id == user_id).all()
 
     @staticmethod
-    def get_preference_by_id(db: Session, preference_id: int) -> Optional[Preference]:
+    def get_preference_by_id(
+        db: Session, preference_id: int
+    ) -> Optional[Preference]:
         """
         Get a preference by ID.
 
@@ -40,10 +42,14 @@ class PreferenceService:
         Returns:
             Preference object if found, None otherwise
         """
-        return db.query(Preference).filter(Preference.id == preference_id).first()
+        return (
+            db.query(Preference).filter(Preference.id == preference_id).first()
+        )
 
     @staticmethod
-    def create_preference(db: Session, user_id: int, preference_in: PreferenceCreate) -> Preference:
+    def create_preference(
+        db: Session, user_id: int, preference_in: PreferenceCreate
+    ) -> Preference:
         """
         Create a new preference for a user.
 
@@ -77,7 +83,9 @@ class PreferenceService:
         return preference
 
     @staticmethod
-    def delete_preference(db: Session, user_id: int, preference_id: int) -> bool:
+    def delete_preference(
+        db: Session, user_id: int, preference_id: int
+    ) -> bool:
         """
         Delete a preference for a user.
 
@@ -92,7 +100,9 @@ class PreferenceService:
         Raises:
             HTTPException: If preference not found or doesn't belong to user
         """
-        preference = db.query(Preference).filter(Preference.id == preference_id).first()
+        preference = (
+            db.query(Preference).filter(Preference.id == preference_id).first()
+        )
 
         if not preference:
             raise HTTPException(

@@ -14,7 +14,11 @@ from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
 from app.schemas.location import Place
 from app.services.auth_service import auth_service
-from app.services.routing_service import RoutingAPIError, RoutingDataError, RoutingNetworkError
+from app.services.routing_service import (
+    RoutingAPIError,
+    RoutingDataError,
+    RoutingNetworkError,
+)
 
 
 def create_test_user(db: Session, username: str = "testuser") -> User:
@@ -53,27 +57,37 @@ def sample_itineraries():
                     duration=600,
                     distance=500.0,
                     from_place=Place(
-                        coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+                        coordinates=Coordinates(
+                            latitude=60.1699, longitude=24.9384
+                        ),
                         name="Origin",
                     ),
                     to_place=Place(
-                        coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                        coordinates=Coordinates(
+                            latitude=60.1710, longitude=24.9400
+                        ),
                         name="Bus Stop",
                     ),
                     route=None,
                 ),
                 Leg(
                     mode=TransportMode.BUS,
-                    start=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                    start=datetime(
+                        2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc
+                    ),
                     end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
                     duration=2100,
                     distance=15000.0,
                     from_place=Place(
-                        coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                        coordinates=Coordinates(
+                            latitude=60.1710, longitude=24.9400
+                        ),
                         name="Bus Stop",
                     ),
                     to_place=Place(
-                        coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+                        coordinates=Coordinates(
+                            latitude=60.2055, longitude=24.6559
+                        ),
                         name="Destination",
                     ),
                     route=Route(
@@ -105,11 +119,15 @@ def sample_itineraries_with_insights():
                     duration=600,
                     distance=500.0,
                     from_place=Place(
-                        coordinates=Coordinates(latitude=60.1699, longitude=24.9384),
+                        coordinates=Coordinates(
+                            latitude=60.1699, longitude=24.9384
+                        ),
                         name="Origin",
                     ),
                     to_place=Place(
-                        coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                        coordinates=Coordinates(
+                            latitude=60.1710, longitude=24.9400
+                        ),
                         name="Bus Stop",
                     ),
                     route=None,
@@ -120,16 +138,22 @@ def sample_itineraries_with_insights():
                 ),
                 Leg(
                     mode=TransportMode.BUS,
-                    start=datetime(2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc),
+                    start=datetime(
+                        2025, 10, 14, 10, 10, 0, tzinfo=timezone.utc
+                    ),
                     end=datetime(2025, 10, 14, 10, 45, 0, tzinfo=timezone.utc),
                     duration=2100,
                     distance=15000.0,
                     from_place=Place(
-                        coordinates=Coordinates(latitude=60.1710, longitude=24.9400),
+                        coordinates=Coordinates(
+                            latitude=60.1710, longitude=24.9400
+                        ),
                         name="Bus Stop",
                     ),
                     to_place=Place(
-                        coordinates=Coordinates(latitude=60.2055, longitude=24.6559),
+                        coordinates=Coordinates(
+                            latitude=60.2055, longitude=24.6559
+                        ),
                         name="Destination",
                     ),
                     route=Route(
@@ -138,7 +162,8 @@ def sample_itineraries_with_insights():
                         description="Express bus service",
                     ),
                     ai_insight=(
-                        "Express bus with comfortable seats. " "Usually not crowded at this time."
+                        "Express bus with comfortable seats. "
+                        "Usually not crowded at this time."
                     ),
                 ),
             ],
@@ -146,7 +171,9 @@ def sample_itineraries_with_insights():
     ]
 
 
-def test_search_routes_success(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_success(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test successful route search."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -188,7 +215,9 @@ def test_search_routes_success(db: Session, client: TestClient, sample_itinerari
         assert len(itinerary["legs"]) == 2
 
 
-def test_search_routes_with_earliest_departure(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_with_earliest_departure(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test route search with custom earliest departure time."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -211,7 +240,9 @@ def test_search_routes_with_earliest_departure(db: Session, client: TestClient, 
         mock_service.get_itinaries.assert_called_once()
 
 
-def test_search_routes_default_num_itineraries(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_default_num_itineraries(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test that num_itineraries defaults to 3."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -242,7 +273,10 @@ def test_search_routes_invalid_coordinates(db: Session, client: TestClient):
     response = client.post(
         "/api/v1/routes/search",
         json={
-            "origin": {"latitude": 91.0, "longitude": 24.9384},  # Invalid latitude
+            "origin": {
+                "latitude": 91.0,
+                "longitude": 24.9384,
+            },  # Invalid latitude
             "destination": {"latitude": 60.2055, "longitude": 24.6559},
         },
         headers=headers,
@@ -283,7 +317,9 @@ def test_search_routes_missing_destination(db: Session, client: TestClient):
     assert response.status_code == 422
 
 
-def test_search_routes_invalid_num_itineraries_too_low(db: Session, client: TestClient):
+def test_search_routes_invalid_num_itineraries_too_low(
+    db: Session, client: TestClient
+):
     """Test route search with num_itineraries below minimum."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -301,7 +337,9 @@ def test_search_routes_invalid_num_itineraries_too_low(db: Session, client: Test
     assert response.status_code == 422
 
 
-def test_search_routes_invalid_num_itineraries_too_high(db: Session, client: TestClient):
+def test_search_routes_invalid_num_itineraries_too_high(
+    db: Session, client: TestClient
+):
     """Test route search with num_itineraries above maximum."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -325,7 +363,9 @@ def test_search_routes_hsl_api_error(db: Session, client: TestClient):
     headers = get_auth_header(user.id)
 
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
-        mock_service.get_itinaries = AsyncMock(side_effect=RoutingAPIError("API error"))
+        mock_service.get_itinaries = AsyncMock(
+            side_effect=RoutingAPIError("API error")
+        )
 
         response = client.post(
             "/api/v1/routes/search",
@@ -346,7 +386,9 @@ def test_search_routes_network_error(db: Session, client: TestClient):
     headers = get_auth_header(user.id)
 
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
-        mock_service.get_itinaries = AsyncMock(side_effect=RoutingNetworkError("Network error"))
+        mock_service.get_itinaries = AsyncMock(
+            side_effect=RoutingNetworkError("Network error")
+        )
 
         response = client.post(
             "/api/v1/routes/search",
@@ -367,7 +409,9 @@ def test_search_routes_data_error(db: Session, client: TestClient):
     headers = get_auth_header(user.id)
 
     with patch("app.api.v1.endpoints.routes.routing_service") as mock_service:
-        mock_service.get_itinaries = AsyncMock(side_effect=RoutingDataError("Parse error"))
+        mock_service.get_itinaries = AsyncMock(
+            side_effect=RoutingDataError("Parse error")
+        )
 
         response = client.post(
             "/api/v1/routes/search",
@@ -428,7 +472,9 @@ def test_search_routes_coordinates_validation(db: Session, client: TestClient):
         assert response.status_code == 422
 
 
-def test_search_routes_valid_edge_coordinates(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_valid_edge_coordinates(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test route search with edge case valid coordinates."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -455,7 +501,9 @@ def test_search_routes_valid_edge_coordinates(db: Session, client: TestClient, s
             assert response.status_code == 200
 
 
-def test_search_routes_without_ai_insight(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_without_ai_insight(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test that route response works without ai_insight in itinerary (graceful degradation)."""
     user = create_test_user(db)
     headers = get_auth_header(user.id)
@@ -481,7 +529,9 @@ def test_search_routes_without_ai_insight(db: Session, client: TestClient, sampl
         assert "ai_insight" not in data["itineraries"][0]
 
 
-def test_search_routes_with_ai_insight(db: Session, client: TestClient, sample_itineraries):
+def test_search_routes_with_ai_insight(
+    db: Session, client: TestClient, sample_itineraries
+):
     """Test that itinerary schema validates correctly when ai_insight is provided."""
     # Test the schema validation directly
     from app.schemas.geo import Coordinates
@@ -492,7 +542,9 @@ def test_search_routes_with_ai_insight(db: Session, client: TestClient, sample_i
     itinerary = sample_itineraries[0]
     legs_with_insights = []
     for leg in itinerary.legs:
-        leg_with_insight = LegWithInsight(**leg.model_dump(), ai_insight="Leg insight")
+        leg_with_insight = LegWithInsight(
+            **leg.model_dump(), ai_insight="Leg insight"
+        )
         legs_with_insights.append(leg_with_insight)
 
     itinerary_data = itinerary.model_dump()
@@ -509,7 +561,10 @@ def test_search_routes_with_ai_insight(db: Session, client: TestClient, sample_i
         itineraries=[itinerary_with_description],
         search_time=datetime.now(timezone.utc),
     )
-    assert response_data.itineraries[0].ai_insight == "This is a fast route with minimal walking."
+    assert (
+        response_data.itineraries[0].ai_insight
+        == "This is a fast route with minimal walking."
+    )
 
     # Schema should validate without ai_insight
     response_data_no_ai = RouteSearchResponse(
@@ -520,7 +575,8 @@ def test_search_routes_with_ai_insight(db: Session, client: TestClient, sample_i
     )
     # ai_insight field removed from RouteSearchResponse
     assert not hasattr(response_data_no_ai, "ai_insight") or (
-        hasattr(response_data_no_ai, "ai_insight") and response_data_no_ai.ai_insight is None
+        hasattr(response_data_no_ai, "ai_insight")
+        and response_data_no_ai.ai_insight is None
     )
 
 
@@ -531,9 +587,15 @@ def test_search_routes_with_ai_insights_success(
     user = create_test_user(db)
     headers = get_auth_header(user.id)
 
-    with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
-        with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
-            mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            mock_routing_service.get_itinaries = AsyncMock(
+                return_value=sample_itineraries
+            )
 
             # Create itineraries with insights
             from app.schemas.insight import ItineraryWithInsight, LegWithInsight
@@ -553,7 +615,9 @@ def test_search_routes_with_ai_insights_success(
                     legs_with_insights.append(leg_with_insight)
 
                 itinerary_data = itinerary.model_dump()
-                itinerary_data.pop("legs")  # Remove legs from dump since we're providing our own
+                itinerary_data.pop(
+                    "legs"
+                )  # Remove legs from dump since we're providing our own
                 itinerary_with_insights = ItineraryWithInsight(
                     **itinerary_data,
                     ai_insight=(
@@ -585,10 +649,16 @@ def test_search_routes_with_ai_insights_success(
             assert len(itinerary["legs"]) == 2
 
             # Check first leg (WALK)
-            assert itinerary["legs"][0]["ai_insight"] == "Short walk to the bus stop."
+            assert (
+                itinerary["legs"][0]["ai_insight"]
+                == "Short walk to the bus stop."
+            )
 
             # Check second leg (BUS)
-            assert itinerary["legs"][1]["ai_insight"] == "Express bus with comfortable seats."
+            assert (
+                itinerary["legs"][1]["ai_insight"]
+                == "Express bus with comfortable seats."
+            )
 
             # Verify AI insight for the itinerary
             assert (
@@ -606,12 +676,20 @@ def test_search_routes_with_ai_service_unavailable(
     user = create_test_user(db)
     headers = get_auth_header(user.id)
 
-    with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
-        with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
-            mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            mock_routing_service.get_itinaries = AsyncMock(
+                return_value=sample_itineraries
+            )
 
             # Mock AI service to return empty list (service unavailable)
-            mock_ai_service.get_itineraries_with_insights = AsyncMock(return_value=[])
+            mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                return_value=[]
+            )
 
             response = client.post(
                 "/api/v1/routes/search",
@@ -645,9 +723,15 @@ def test_search_routes_with_ai_service_partial_failure(
     user = create_test_user(db)
     headers = get_auth_header(user.id)
 
-    with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
-        with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
-            mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            mock_routing_service.get_itinaries = AsyncMock(
+                return_value=sample_itineraries
+            )
 
             # Create itineraries with partial insights (only description, no leg insights)
             from app.schemas.insight import ItineraryWithInsight, LegWithInsight
@@ -658,12 +742,15 @@ def test_search_routes_with_ai_service_partial_failure(
                 legs_with_insights = []
                 for leg in itinerary.legs:
                     leg_with_insight = LegWithInsight(
-                        **leg.model_dump(), ai_insight=""  # Partial failure - no leg insights
+                        **leg.model_dump(),
+                        ai_insight="",  # Partial failure - no leg insights
                     )
                     legs_with_insights.append(leg_with_insight)
 
                 itinerary_data = itinerary.model_dump()
-                itinerary_data.pop("legs")  # Remove legs from dump since we're providing our own
+                itinerary_data.pop(
+                    "legs"
+                )  # Remove legs from dump since we're providing our own
                 itinerary_with_insights = ItineraryWithInsight(
                     **itinerary_data,
                     ai_insight="This is a good route.",
@@ -688,7 +775,9 @@ def test_search_routes_with_ai_service_partial_failure(
             data = response.json()
 
             # Verify itinerary has insight but legs have empty insights (partial failure)
-            assert data["itineraries"][0]["ai_insight"] == "This is a good route."
+            assert (
+                data["itineraries"][0]["ai_insight"] == "This is a good route."
+            )
             assert data["itineraries"][0]["legs"][0]["ai_insight"] == ""
             assert data["itineraries"][0]["legs"][1]["ai_insight"] == ""
 
@@ -700,9 +789,15 @@ def test_search_routes_with_ai_service_exception(
     user = create_test_user(db)
     headers = get_auth_header(user.id)
 
-    with patch("app.api.v1.endpoints.routes.routing_service") as mock_routing_service:
-        with patch("app.api.v1.endpoints.routes.ai_agents_service") as mock_ai_service:
-            mock_routing_service.get_itinaries = AsyncMock(return_value=sample_itineraries)
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            mock_routing_service.get_itinaries = AsyncMock(
+                return_value=sample_itineraries
+            )
 
             # Mock AI service to raise an exception
             mock_ai_service.get_itineraries_with_insights = AsyncMock(
@@ -760,7 +855,10 @@ def test_leg_schema_with_ai_insight():
         ),
         ai_insight="This is an AI-generated insight about the leg.",
     )
-    assert leg_with_insight.ai_insight == "This is an AI-generated insight about the leg."
+    assert (
+        leg_with_insight.ai_insight
+        == "This is an AI-generated insight about the leg."
+    )
 
     # Test leg without ai_insight (regular Leg object)
     leg_without_insight = Leg(

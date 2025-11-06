@@ -6,7 +6,11 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.schemas.health import ServiceHealth
-from app.schemas.insight import ItineraryInsight, ItineraryWithInsight, LegWithInsight
+from app.schemas.insight import (
+    ItineraryInsight,
+    ItineraryWithInsight,
+    LegWithInsight,
+)
 from app.schemas.itinary import Itinerary
 
 logger = logging.getLogger(__name__)
@@ -41,7 +45,9 @@ class AiAgentsService:
             httpx.AsyncClient instance for making requests to the AI Agents API.
         """
         if self._client is None:
-            self._client = httpx.AsyncClient(base_url=self._api_url, timeout=10.0)
+            self._client = httpx.AsyncClient(
+                base_url=self._api_url, timeout=10.0
+            )
         return self._client
 
     async def health_check(self) -> ServiceHealth:
@@ -77,7 +83,9 @@ class AiAgentsService:
             )
 
     async def get_itineraries_with_insights(
-        self, itineraries: list[Itinerary], user_preferences: Optional[list] = None
+        self,
+        itineraries: list[Itinerary],
+        user_preferences: Optional[list] = None,
     ) -> list[ItineraryWithInsight]:
         """
         Takes itineraries and returns AI-generated insights for each leg and each itineraries.
@@ -109,7 +117,9 @@ class AiAgentsService:
                 response.status_code,
             )
         except httpx.TimeoutException:
-            logger.warning("AI agents service request timed out for itinerary insight")
+            logger.warning(
+                "AI agents service request timed out for itinerary insight"
+            )
             return []
         except Exception as e:  # pylint: disable=broad-except
             logger.warning("Failed to get AI itinerary insight: %s", str(e))
@@ -125,7 +135,9 @@ class AiAgentsService:
         Combine itineraries with their corresponding AI-generated insights.
         """
         itineraries_with_insights = []
-        for itinerary, itinerary_insight in zip(itineraries, itinerary_insights):
+        for itinerary, itinerary_insight in zip(
+            itineraries, itinerary_insights
+        ):
             itineraries_with_insights.append(
                 self._parse_itinerary_with_insight(itinerary, itinerary_insight)
             )
@@ -140,9 +152,13 @@ class AiAgentsService:
         Combine itinerary data with AI-generated insights into a single object.
         """
         legs_with_insights = []
-        for leg, leg_insight in zip(itinerary.legs, itinerary_insight.leg_insights):
+        for leg, leg_insight in zip(
+            itinerary.legs, itinerary_insight.leg_insights
+        ):
             legs_with_insights.append(
-                LegWithInsight(**leg.model_dump(), ai_insight=leg_insight.ai_insight)
+                LegWithInsight(
+                    **leg.model_dump(), ai_insight=leg_insight.ai_insight
+                )
             )
 
         itinerary_data = itinerary.model_dump()

@@ -30,7 +30,9 @@ def test_register_user(db: Session, client: TestClient):
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
-    db_user = db.query(User).filter(User.username == user_data["username"]).first()
+    db_user = (
+        db.query(User).filter(User.username == user_data["username"]).first()
+    )
     assert db_user is not None
     assert db_user.username == user_data["username"]
 
@@ -67,7 +69,9 @@ def test_login_success(db: Session, client: TestClient):
     db.add(db_user)
     db.commit()
 
-    response = client.post("/api/v1/auth/login", data={"username": username, "password": password})
+    response = client.post(
+        "/api/v1/auth/login", data={"username": username, "password": password}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -86,7 +90,8 @@ def test_login_incorrect_password(db: Session, client: TestClient):
     db.commit()
 
     response = client.post(
-        "/api/v1/auth/login", data={"username": username, "password": "wrongpassword"}
+        "/api/v1/auth/login",
+        data={"username": username, "password": "wrongpassword"},
     )
 
     assert response.status_code == 401

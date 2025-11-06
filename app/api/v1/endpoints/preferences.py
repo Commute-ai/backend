@@ -20,7 +20,9 @@ async def get_user_preferences(
     """
     Get all preferences for the authenticated user.
     """
-    preferences = preference_service.get_user_preferences(db, int(current_user.id))
+    preferences = preference_service.get_user_preferences(
+        db, int(current_user.id)
+    )
     return preferences
 
 
@@ -33,7 +35,9 @@ async def create_preference(
     """
     Create a new preference for the authenticated user.
     """
-    preference = preference_service.create_preference(db, int(current_user.id), preference_in)
+    preference = preference_service.create_preference(
+        db, int(current_user.id), preference_in
+    )
     return preference
 
 
@@ -46,4 +50,6 @@ async def delete_preference(
     """
     Delete a preference for the authenticated user.
     """
-    preference_service.delete_preference(db, int(current_user.id), preference_id)
+    preference_service.delete_preference(
+        db, int(current_user.id), preference_id
+    )

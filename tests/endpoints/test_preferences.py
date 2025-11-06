@@ -24,7 +24,9 @@ def get_auth_header(user_id: int) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def create_test_preference(db: Session, user_id: int, prompt: str) -> Preference:
+def create_test_preference(
+    db: Session, user_id: int, prompt: str
+) -> Preference:
     """Helper function to create a test preference"""
     preference = Preference(user_id=user_id, prompt=prompt)
     db.add(preference)

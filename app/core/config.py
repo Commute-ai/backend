@@ -18,10 +18,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Database Settings
-    DATABASE_URL: str = "postgresql://commute_user:commute_pass@localhost:5432/commute_db"
+    DATABASE_URL: str = (
+        "postgresql://commute_user:commute_pass@localhost:5432/commute_db"
+    )
 
     # HSL API Settings
-    HSL_ROUTING_API_URL: str = "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1"
+    HSL_ROUTING_API_URL: str = (
+        "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1"
+    )
     HSL_SUBSCRIPTION_KEY: str = ""
 
     # AI Agents API Settings

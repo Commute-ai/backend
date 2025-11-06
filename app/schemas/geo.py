@@ -13,8 +13,12 @@ class Coordinates(BaseModel):
     Geographic coordinates (latitude and longitude).
     """
 
-    latitude: float = Field(..., ge=-90.0, le=90.0, description="Latitude in decimal degrees")
-    longitude: float = Field(..., ge=-180.0, le=180.0, description="Longitude in decimal degrees")
+    latitude: float = Field(
+        ..., ge=-90.0, le=90.0, description="Latitude in decimal degrees"
+    )
+    longitude: float = Field(
+        ..., ge=-180.0, le=180.0, description="Longitude in decimal degrees"
+    )
 
     @field_validator("latitude")
     @classmethod

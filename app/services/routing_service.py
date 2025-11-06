@@ -188,7 +188,9 @@ class RoutingService:
             client = self._get_client()
             query = gql(ITINERARY_QUERY)
 
-            result = await client.execute_async(query, variable_values=variables)
+            result = await client.execute_async(
+                query, variable_values=variables
+            )
 
             return self._parse_itinaries(result)
         except TransportQueryError as e:
@@ -252,10 +254,14 @@ class RoutingService:
                 name=data["from"]["name"],
             ),
             to_place=Place(
-                coordinates=Coordinates(latitude=data["to"]["lat"], longitude=data["to"]["lon"]),
+                coordinates=Coordinates(
+                    latitude=data["to"]["lat"], longitude=data["to"]["lon"]
+                ),
                 name=data["to"]["name"],
             ),
-            route=self._parse_route(data["route"]) if data.get("route") else None,
+            route=(
+                self._parse_route(data["route"]) if data.get("route") else None
+            ),
         )
 
     def _parse_route(self, data: Dict) -> Route:
@@ -276,15 +282,23 @@ class RoutingService:
             ServiceHealth indicating the health status of the routing service.
         """
         try:
-            origin = Coordinates(latitude=60.192059, longitude=24.945831)  # Helsinki
-            destination = Coordinates(latitude=60.169856, longitude=24.938379)  # Helsinki Cathedral
+            origin = Coordinates(
+                latitude=60.192059, longitude=24.945831
+            )  # Helsinki
+            destination = Coordinates(
+                latitude=60.169856, longitude=24.938379
+            )  # Helsinki Cathedral
 
             await self.get_itinaries(origin, destination, first=1)
 
-            return ServiceHealth(healthy=True, message="Routing service is healthy")
+            return ServiceHealth(
+                healthy=True, message="Routing service is healthy"
+            )
         except RoutingServiceError as e:
             logger.error("Routing service health check failed: %s", str(e))
-            return ServiceHealth(healthy=False, message=f"Routing service error: {str(e)}")
+            return ServiceHealth(
+                healthy=False, message=f"Routing service error: {str(e)}"
+            )
 
     async def close(self):
         """

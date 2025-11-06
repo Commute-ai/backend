@@ -21,7 +21,9 @@ def create_test_user(db: Session) -> User:
     return user
 
 
-def create_test_preference(db: Session, user_id: int, prompt: str) -> Preference:
+def create_test_preference(
+    db: Session, user_id: int, prompt: str
+) -> Preference:
     """Helper function to create a test preference"""
     preference = Preference(user_id=user_id, prompt=prompt)
     db.add(preference)
@@ -78,7 +80,9 @@ def test_create_preference(db: Session):
     user = create_test_user(db)
     preference_in = PreferenceCreate(prompt="Prefer trains over buses")
 
-    preference = preference_service.create_preference(db, user.id, preference_in)
+    preference = preference_service.create_preference(
+        db, user.id, preference_in
+    )
 
     assert preference.id is not None
     assert preference.user_id == user.id
@@ -91,7 +95,9 @@ def test_create_preference_strips_whitespace(db: Session):
     user = create_test_user(db)
     preference_in = PreferenceCreate(prompt="  Avoid crowded routes  ")
 
-    preference = preference_service.create_preference(db, user.id, preference_in)
+    preference = preference_service.create_preference(
+        db, user.id, preference_in
+    )
 
     assert preference.prompt == "Avoid crowded routes"
 
