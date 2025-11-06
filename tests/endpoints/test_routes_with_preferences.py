@@ -160,8 +160,8 @@ def test_search_routes_with_request_preferences(
             call_args = mock_ai_service.get_itineraries_with_insights.call_args
             assert call_args.args[0] == sample_itineraries
             assert call_args.args[1] == [
-                "prefer walking",
-                "avoid crowded buses",
+                {"prompt": "prefer walking"},
+                {"prompt": "avoid crowded buses"},
             ]
 
 
@@ -226,8 +226,10 @@ def test_search_routes_with_authenticated_user_preferences(
 
                 # Verify AI service was called with stored preferences
                 assert len(captured_preferences) == 1
-                assert "I prefer eco-friendly routes" in captured_preferences[0]
-                assert "Avoid long walks" in captured_preferences[0]
+                assert {
+                    "prompt": "I prefer eco-friendly routes"
+                } in captured_preferences[0]
+                assert {"prompt": "Avoid long walks"} in captured_preferences[0]
 
 
 def test_search_routes_with_request_only_preferences(
@@ -275,8 +277,8 @@ def test_search_routes_with_request_only_preferences(
 
             # Verify AI service was called with request preferences only
             assert len(captured_preferences) == 1
-            assert "prefer trams" in captured_preferences[0]
-            assert "avoid crowded buses" in captured_preferences[0]
+            assert {"prompt": "prefer trams"} in captured_preferences[0]
+            assert {"prompt": "avoid crowded buses"} in captured_preferences[0]
             assert len(captured_preferences[0]) == 2  # Only request preferences
 
 
