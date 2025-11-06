@@ -69,18 +69,20 @@ async def search_routes(
     )
 
     # Collect user preferences from multiple sources
-    user_preferences: List[str] = []
+    user_preferences: List[dict] = []
 
     # 1. Add preferences from request (explicitly provided)
     if request.preferences:
-        user_preferences.extend(request.preferences)
+        for pref in request.preferences:
+            user_preferences.append({"prompt": pref})
 
     # 2. Add stored preferences from authenticated user
     try:
         stored_prefs = preference_service.get_user_preferences(
             db, int(current_user.id)
         )
-        user_preferences.extend([str(pref.prompt) for pref in stored_prefs])
+        for pref in stored_prefs:
+            user_preferences.append({"prompt": pref.prompt})
     except Exception as e:  # pylint: disable=broad-except
         logger.warning("Failed to fetch user preferences: %s", str(e))
 

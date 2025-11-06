@@ -101,7 +101,7 @@ class AiAgentsService:
 
             response = await client.post(
                 "/insight/itineraries",
-                json=request_data.model_dump(exclude_none=True),
+                json=request_data.model_dump(exclude_none=True, mode="json"),
             )
 
             if response.status_code == 200:
@@ -113,8 +113,13 @@ class AiAgentsService:
                 )
 
             logger.warning(
-                "AI agents service returned non-200 status for itinerary insight: %s",
+                "AI agents service returned non-200 status for itinerary insight: %s - %s",
                 response.status_code,
+                (
+                    response.text
+                    if hasattr(response, "text")
+                    else "No response body"
+                ),
             )
         except httpx.TimeoutException:
             logger.warning(
@@ -122,7 +127,11 @@ class AiAgentsService:
             )
             return []
         except Exception as e:  # pylint: disable=broad-except
-            logger.warning("Failed to get AI itinerary insight: %s", str(e))
+            logger.warning(
+                "Failed to get AI itinerary insight - %s: %s",
+                type(e).__name__,
+                str(e),
+            )
 
         return []
 
