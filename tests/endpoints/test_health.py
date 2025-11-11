@@ -10,8 +10,12 @@ def test_health_check_all_services_healthy(client: TestClient):
 
     # Mock the external API calls to return healthy responses
     with (
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
         mock_routing.return_value = ServiceHealth(
@@ -43,12 +47,17 @@ def test_health_check_database_unhealthy(client: TestClient):
     # Mock the external API calls to return healthy responses
     with (
         patch("app.db.database.health_check") as mock_db,
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
         mock_db.return_value = ServiceHealth(
-            healthy=False, message="Database connection failed: Connection refused"
+            healthy=False,
+            message="Database connection failed: Connection refused",
         )
 
         mock_routing.return_value = ServiceHealth(
@@ -74,8 +83,12 @@ def test_health_check_routing_service_unhealthy(client: TestClient):
     """Test health check when routing service is unhealthy."""
 
     with (
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
         mock_routing.return_value = ServiceHealth(
@@ -101,8 +114,12 @@ def test_health_check_ai_agents_service_unhealthy(client: TestClient):
     """Test health check when AI-agents service is unhealthy."""
 
     with (
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
         mock_routing.return_value = ServiceHealth(
@@ -129,11 +146,17 @@ def test_health_check_multiple_services_unhealthy(client: TestClient):
 
     with (
         patch("app.db.database.health_check") as mock_db,
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
-        mock_db.return_value = ServiceHealth(healthy=False, message="Database connection failed")
+        mock_db.return_value = ServiceHealth(
+            healthy=False, message="Database connection failed"
+        )
 
         mock_routing.return_value = ServiceHealth(
             healthy=False, message="Routing service request timed out"
@@ -158,8 +181,12 @@ def test_health_check_response_structure(client: TestClient):
     """Test that the health check response has the correct structure."""
 
     with (
-        patch("app.services.routing_service.routing_service.health_check") as mock_routing,
-        patch("app.services.ai_agents_service.ai_agents_service.health_check") as mock_ai,
+        patch(
+            "app.services.routing_service.routing_service.health_check"
+        ) as mock_routing,
+        patch(
+            "app.services.ai_agents_service.ai_agents_service.health_check"
+        ) as mock_ai,
     ):
 
         mock_routing.return_value = ServiceHealth(

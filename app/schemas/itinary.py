@@ -6,7 +6,7 @@ Pydantic models for representing transit routes and itineraries.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -29,9 +29,15 @@ class TransportMode(str, Enum):
 class Route(BaseModel):
     """Route information for a leg of the journey."""
 
-    short_name: str = Field(..., description="Short name of the route, e.g., bus number")
-    long_name: str = Field(..., description="Long name of the route, e.g., full route name")
-    description: Optional[str] = Field(..., description="Description of the route")
+    short_name: str = Field(
+        ..., description="Short name of the route, e.g., bus number"
+    )
+    long_name: str = Field(
+        ..., description="Long name of the route, e.g., full route name"
+    )
+    description: str | None = Field(
+        None, description="Description of the route"
+    )
 
 
 class Leg(BaseModel):
@@ -44,10 +50,7 @@ class Leg(BaseModel):
     distance: float = Field(..., description="Distance in meters")
     from_place: Place
     to_place: Place
-    route: Optional[Route] = None
-    ai_insight: Optional[str] = Field(
-        default=None, description="AI-generated insight about this leg of the journey"
-    )
+    route: Route | None = None
 
 
 class Itinerary(BaseModel):
@@ -56,9 +59,8 @@ class Itinerary(BaseModel):
     start: datetime
     end: datetime
     duration: int = Field(..., description="Total duration in seconds")
-    walk_distance: float = Field(..., description="Total walking distance in meters")
+    walk_distance: float = Field(
+        ..., description="Total walking distance in meters"
+    )
     walk_time: int = Field(..., description="Total walking time in seconds")
     legs: List[Leg]
-    ai_description: Optional[str] = Field(
-        default=None, description="AI-generated description of the overall itinerary"
-    )

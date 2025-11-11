@@ -63,11 +63,17 @@ class AuthService:
         Returns:
             JWT access token string
         """
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        return create_access_token(subject=user_id, expires_delta=access_token_expires)
+        access_token_expires = timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+        return create_access_token(
+            subject=user_id, expires_delta=access_token_expires
+        )
 
     @staticmethod
-    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    def authenticate_user(
+        db: Session, username: str, password: str
+    ) -> Optional[User]:
         """
         Authenticate a user by username and password.
 
@@ -104,7 +110,9 @@ class AuthService:
             HTTPException: If token is invalid or user not found
         """
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
             token_data = TokenPayload(**payload)
         except (jwt.JWTError, ValidationError):
             raise HTTPException(
@@ -120,7 +128,9 @@ class AuthService:
     @staticmethod
     def get_current_user_optional(
         db: Session = Depends(get_db),
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+            HTTPBearer(auto_error=False)
+        ),
     ) -> Optional[User]:
         """
         Decode JWT token and return the current user if authenticated.
@@ -141,7 +151,9 @@ class AuthService:
 
         token = credentials.credentials
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
             token_data = TokenPayload(**payload)
         except (jwt.JWTError, ValidationError):
             raise HTTPException(

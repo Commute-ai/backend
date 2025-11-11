@@ -4,7 +4,14 @@
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    python3
+    python311
     gnumake
   ];
+
+  shellHook = ''
+    make setup
+    if [[ -d venv ]]; then
+    source venv/bin/activate
+    fi
+  '';
 }

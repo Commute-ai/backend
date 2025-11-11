@@ -1,5 +1,5 @@
 [tool.black]
-line-length = 100
+line-length = 80
 target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -20,7 +20,7 @@ extend-exclude = '''
 
 [tool.isort]
 profile = "black"
-line_length = 100
+line_length = 80
 skip_gitignore = true
 extend_skip = ["alembic"]
 
@@ -31,6 +31,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --strict-markers"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "asyncio: mark test as an asyncio test",
 ]

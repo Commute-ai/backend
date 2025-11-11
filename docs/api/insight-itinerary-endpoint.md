@@ -58,7 +58,7 @@ The response contains AI-generated insights for the entire itinerary and individ
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ai_description` | `string \| null` | AI-generated description of the overall itinerary |
+| `ai_insight` | `string \| null` | AI-generated insight about the overall itinerary |
 | `ai_insights` | `List[string \| null]` | List of AI-generated insights for each leg. Each insight corresponds to a leg in the request (by index). May be null for individual legs if no specific insight is available. |
 
 ## Example Request
@@ -110,7 +110,7 @@ The response contains AI-generated insights for the entire itinerary and individ
 
 ```json
 {
-  "ai_description": "This 90-minute commute from home to your office combines walking and public transit. The journey starts with a short 10-minute walk to the bus stop, followed by a 30-minute express bus ride on route 550, and concludes with a brief 5-minute walk to your destination. The total walking distance is approximately 1.2 km, which is moderate and provides some physical activity during your commute.",
+  "ai_insight": "This 90-minute commute from home to your office combines walking and public transit. The journey starts with a short 10-minute walk to the bus stop, followed by a 30-minute express bus ride on route 550, and concludes with a brief 5-minute walk to your destination. The total walking distance is approximately 1.2 km, which is moderate and provides some physical activity during your commute.",
   "ai_insights": [
     "A short 500-meter walk to the bus stop. Consider leaving a few minutes early during rainy weather.",
     "The 550 express bus provides a direct connection and typically has good frequency during peak hours. However, it may be crowded during morning rush hour based on your preferences.",
@@ -161,7 +161,7 @@ async def enrich_itinerary_with_ai(itinerary: Itinerary, user_preferences: list 
     await ai_agents_service.get_itinerary_insight(itinerary, user_preferences)
     
     # After this call:
-    # - itinerary.ai_description will contain the overall description
+    # - itinerary.ai_insight will contain the overall insight
     # - each leg.ai_insight will contain leg-specific insights
 ```
 

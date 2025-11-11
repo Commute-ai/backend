@@ -29,7 +29,11 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
 
     # Determine overall health
     overall_healthy = all(
-        [database_health.healthy, routing_service_health.healthy, ai_agents_service_health.healthy]
+        [
+            database_health.healthy,
+            routing_service_health.healthy,
+            ai_agents_service_health.healthy,
+        ]
     )
 
     response = HealthCheckResponse(
@@ -46,5 +50,6 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     if overall_healthy:
         return response
     raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=response.model_dump()
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=response.model_dump(),
     )

@@ -23,7 +23,9 @@ def sample_coordinates():
     """Sample coordinates for testing."""
     return {
         "origin": Coordinates(latitude=60.1699, longitude=24.9384),  # Helsinki
-        "destination": Coordinates(latitude=60.2055, longitude=24.6559),  # Espoo
+        "destination": Coordinates(
+            latitude=60.2055, longitude=24.6559
+        ),  # Espoo
     }
 
 
@@ -43,8 +45,12 @@ def sample_graphql_response():
                         "legs": [
                             {
                                 "mode": "WALK",
-                                "start": {"scheduledTime": "2025-10-14T10:00:00+03:00"},
-                                "end": {"scheduledTime": "2025-10-14T10:10:00+03:00"},
+                                "start": {
+                                    "scheduledTime": "2025-10-14T10:00:00+03:00"
+                                },
+                                "end": {
+                                    "scheduledTime": "2025-10-14T10:10:00+03:00"
+                                },
                                 "duration": 600,
                                 "distance": 500.0,
                                 "from": {
@@ -61,8 +67,12 @@ def sample_graphql_response():
                             },
                             {
                                 "mode": "BUS",
-                                "start": {"scheduledTime": "2025-10-14T10:10:00+03:00"},
-                                "end": {"scheduledTime": "2025-10-14T10:45:00+03:00"},
+                                "start": {
+                                    "scheduledTime": "2025-10-14T10:10:00+03:00"
+                                },
+                                "end": {
+                                    "scheduledTime": "2025-10-14T10:45:00+03:00"
+                                },
                                 "duration": 2100,
                                 "distance": 15000.0,
                                 "from": {
@@ -90,11 +100,15 @@ def sample_graphql_response():
 
 
 @pytest.mark.asyncio
-async def test_get_itinaries_success(routing_service, sample_coordinates, sample_graphql_response):
+async def test_get_itinaries_success(
+    routing_service, sample_coordinates, sample_graphql_response
+):
     """Test successful itinerary fetch."""
     with patch.object(routing_service, "_get_client") as mock_client:
         mock_gql_client = MagicMock()
-        mock_gql_client.execute_async = AsyncMock(return_value=sample_graphql_response)
+        mock_gql_client.execute_async = AsyncMock(
+            return_value=sample_graphql_response
+        )
         mock_client.return_value = mock_gql_client
 
         itineraries = await routing_service.get_itinaries(
@@ -110,13 +124,17 @@ async def test_get_itinaries_success(routing_service, sample_coordinates, sample
 
 
 @pytest.mark.asyncio
-async def test_get_itinaries_with_custom_params(routing_service, sample_coordinates):
+async def test_get_itinaries_with_custom_params(
+    routing_service, sample_coordinates
+):
     """Test itinerary fetch with custom parameters."""
     departure_time = datetime(2025, 10, 14, 12, 0, 0, tzinfo=timezone.utc)
 
     with patch.object(routing_service, "_get_client") as mock_client:
         mock_gql_client = MagicMock()
-        mock_gql_client.execute_async = AsyncMock(return_value={"planConnection": {"edges": []}})
+        mock_gql_client.execute_async = AsyncMock(
+            return_value={"planConnection": {"edges": []}}
+        )
         mock_client.return_value = mock_gql_client
 
         await routing_service.get_itinaries(
@@ -131,7 +149,10 @@ async def test_get_itinaries_with_custom_params(routing_service, sample_coordina
 
         assert variables["first"] == 5
         assert variables["originLat"] == sample_coordinates["origin"].latitude
-        assert variables["destinationLat"] == sample_coordinates["destination"].latitude
+        assert (
+            variables["destinationLat"]
+            == sample_coordinates["destination"].latitude
+        )
 
 
 def test_parse_itinary(routing_service, sample_graphql_response):
@@ -212,11 +233,15 @@ def test_parse_route(routing_service):
 
 
 @pytest.mark.asyncio
-async def test_get_itinaries_empty_response(routing_service, sample_coordinates):
+async def test_get_itinaries_empty_response(
+    routing_service, sample_coordinates
+):
     """Test handling of empty API response."""
     with patch.object(routing_service, "_get_client") as mock_client:
         mock_gql_client = MagicMock()
-        mock_gql_client.execute_async = AsyncMock(return_value={"planConnection": {"edges": []}})
+        mock_gql_client.execute_async = AsyncMock(
+            return_value={"planConnection": {"edges": []}}
+        )
         mock_client.return_value = mock_gql_client
 
         itineraries = await routing_service.get_itinaries(

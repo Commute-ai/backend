@@ -9,7 +9,7 @@ load_dotenv()
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Commute.ai"
     PROJECT_DESCRIPTION: str = "AI-powered public transport routing"
-    VERSION: str = "0.6.0"
+    VERSION: str = "0.7.0"
     API_V1_STR: str = "/api/v1"
 
     # JWT Settings
@@ -18,10 +18,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Database Settings
-    DATABASE_URL: str = "postgresql://commute_user:commute_pass@localhost:5432/commute_db"
+    DATABASE_URL: str = (
+        "postgresql://commute_user:commute_pass@localhost:5432/commute_db"
+    )
 
     # HSL API Settings
-    HSL_ROUTING_API_URL: str = "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1"
+    HSL_ROUTING_API_URL: str = (
+        "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1"
+    )
     HSL_SUBSCRIPTION_KEY: str = ""
 
     # AI Agents API Settings
