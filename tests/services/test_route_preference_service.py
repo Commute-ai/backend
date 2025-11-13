@@ -265,3 +265,120 @@ def test_multiple_users_preferences_isolated(db: Session):
     user2_prefs = route_preference_service.get_user_preferences(db, user2.id)
     assert len(user2_prefs) == 1
     assert all(pref.user_id == user2.id for pref in user2_prefs)
+
+
+def test_get_preferences_by_coordinates_matching(db: Session):
+    """Test getting preferences by matching coordinates"""
+    user = create_test_user(db)
+
+    # Create preferences with different coordinates
+    pref1 = create_test_route_preference(
+        db, user.id, "Prefer scenic route", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+    create_test_route_preference(
+        db, user.id, "Different route", 60.1700, 24.9400, 60.2060, 24.6600
+    )
+
+    # Search for preferences matching specific coordinates
+    matching_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user.id, 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    assert len(matching_prefs) == 1
+    assert matching_prefs[0].id == pref1.id
+    assert matching_prefs[0].prompt == "Prefer scenic route"
+
+
+def test_get_preferences_by_coordinates_no_match(db: Session):
+    """Test getting preferences when coordinates don't match"""
+    user = create_test_user(db)
+
+    # Create preference with specific coordinates
+    create_test_route_preference(
+        db, user.id, "Prefer scenic route", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    # Search with different coordinates
+    matching_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user.id, 60.1700, 24.9400, 60.2060, 24.6600
+    )
+
+    assert len(matching_prefs) == 0
+
+
+def test_get_preferences_by_coordinates_multiple_matches(db: Session):
+    """Test getting multiple preferences matching the same coordinates"""
+    user = create_test_user(db)
+
+    # Create multiple preferences with same coordinates
+    pref1 = create_test_route_preference(
+        db, user.id, "Prefer scenic route", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+    pref2 = create_test_route_preference(
+        db, user.id, "Avoid construction", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    # Search for preferences matching coordinates
+    matching_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user.id, 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    assert len(matching_prefs) == 2
+    assert matching_prefs[0].id == pref1.id
+    assert matching_prefs[1].id == pref2.id
+
+
+def test_get_preferences_by_coordinates_user_isolation(db: Session):
+    """Test that coordinate search is isolated per user"""
+    user1 = create_test_user(db)
+    user2 = User(
+        username="otheruser",
+        hashed_password=auth_service.get_password_hash("password"),
+    )
+    db.add(user2)
+    db.commit()
+    db.refresh(user2)
+
+    # Create preferences for both users with same coordinates
+    create_test_route_preference(
+        db, user1.id, "User1 preference", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+    create_test_route_preference(
+        db, user2.id, "User2 preference", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    # User1 should only see their preference
+    user1_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user1.id, 60.1699, 24.9384, 60.2055, 24.6559
+    )
+    assert len(user1_prefs) == 1
+    assert user1_prefs[0].prompt == "User1 preference"
+
+    # User2 should only see their preference
+    user2_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user2.id, 60.1699, 24.9384, 60.2055, 24.6559
+    )
+    assert len(user2_prefs) == 1
+    assert user2_prefs[0].prompt == "User2 preference"
+
+
+def test_get_preferences_by_coordinates_partial_match(db: Session):
+    """Test that partial coordinate matches don't return results"""
+    user = create_test_user(db)
+
+    # Create preference with specific coordinates
+    create_test_route_preference(
+        db, user.id, "Prefer scenic route", 60.1699, 24.9384, 60.2055, 24.6559
+    )
+
+    # Try matching with only origin coordinates correct
+    matching_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user.id, 60.1699, 24.9384, 60.9999, 24.9999
+    )
+    assert len(matching_prefs) == 0
+
+    # Try matching with only destination coordinates correct
+    matching_prefs = route_preference_service.get_preferences_by_coordinates(
+        db, user.id, 60.9999, 24.9999, 60.2055, 24.6559
+    )
+    assert len(matching_prefs) == 0

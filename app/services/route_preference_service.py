@@ -35,6 +35,41 @@ class RoutePreferenceService:
         )
 
     @staticmethod
+    def get_preferences_by_coordinates(
+        db: Session,
+        user_id: int,
+        from_latitude: float,
+        from_longitude: float,
+        to_latitude: float,
+        to_longitude: float,
+    ) -> List[RoutePreference]:
+        """
+        Get route preferences for a user that match specific coordinates.
+
+        Args:
+            db: Database session
+            user_id: User ID to get preferences for
+            from_latitude: Origin latitude
+            from_longitude: Origin longitude
+            to_latitude: Destination latitude
+            to_longitude: Destination longitude
+
+        Returns:
+            List of RoutePreference objects matching the coordinates
+        """
+        return (
+            db.query(RoutePreference)
+            .filter(
+                RoutePreference.user_id == user_id,
+                RoutePreference.from_latitude == from_latitude,
+                RoutePreference.from_longitude == from_longitude,
+                RoutePreference.to_latitude == to_latitude,
+                RoutePreference.to_longitude == to_longitude,
+            )
+            .all()
+        )
+
+    @staticmethod
     def get_preference_by_id(
         db: Session, preference_id: int
     ) -> Optional[RoutePreference]:
