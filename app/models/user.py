@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.database import Base
-from app.models.preference import Preference
 
 
 class User(Base):
@@ -15,8 +14,11 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    preferences = relationship(
-        Preference, back_populates="user", cascade="all, delete-orphan"
+    global_preferences = relationship(
+        "GlobalPreference", back_populates="user", cascade="all, delete-orphan"
+    )
+    route_preferences = relationship(
+        "RoutePreference", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __init__(self, username, hashed_password):

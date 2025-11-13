@@ -5,8 +5,8 @@ from sqlalchemy.sql import func
 from app.db.database import Base
 
 
-class Preference(Base):
-    __tablename__ = "preference"
+class GlobalPreference(Base):
+    __tablename__ = "global_preferences"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
@@ -16,7 +16,7 @@ class Preference(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    user = relationship("User", back_populates="preferences")
+    user = relationship("User", back_populates="global_preferences")
 
     def __init__(self, user_id, prompt):
         self.user_id = user_id

@@ -18,7 +18,7 @@ from app.schemas.itinary import Itinerary
 from app.schemas.routes import RouteSearchRequest, RouteSearchResponse
 from app.services.ai_agents_service import ai_agents_service
 from app.services.auth_service import auth_service
-from app.services.preference_service import preference_service
+from app.services.global_preference_service import global_preference_service
 from app.services.routing_service import (
     RoutingAPIError,
     RoutingDataError,
@@ -76,9 +76,9 @@ async def search_routes(
         for pref in request.preferences:
             user_preferences.append({"prompt": pref})
 
-    # 2. Add stored preferences from authenticated user
+    # 2. Add stored global preferences from authenticated user
     try:
-        stored_prefs = preference_service.get_user_preferences(
+        stored_prefs = global_preference_service.get_user_preferences(
             db, int(current_user.id)
         )
         for pref in stored_prefs:

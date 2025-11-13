@@ -8,6 +8,8 @@ from app.core.config import settings
 # Import your Base and all models
 from app.db.database import Base
 from app.models.user import User  # noqa: F401 - Import to register with Base
+from app.models.global_preference import GlobalPreference  # noqa: F401
+from app.models.route_preference import RoutePreference  # noqa: F401
 
 
 # this is the Alembic Config object, which provides

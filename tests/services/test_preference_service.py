@@ -2,11 +2,11 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.preference import Preference
+from app.models.global_preference import GlobalPreference
 from app.models.user import User
-from app.schemas.preference import PreferenceCreate
+from app.schemas.global_preference import GlobalPreferenceCreate
 from app.services.auth_service import auth_service
-from app.services.preference_service import preference_service
+from app.services.global_preference_service import global_preference_service
 
 
 def create_test_user(db: Session) -> User:
@@ -23,9 +23,9 @@ def create_test_user(db: Session) -> User:
 
 def create_test_preference(
     db: Session, user_id: int, prompt: str
-) -> Preference:
-    """Helper function to create a test preference"""
-    preference = Preference(user_id=user_id, prompt=prompt)
+) -> GlobalPreference:
+    """Helper function to create a test global preference"""
+    preference = GlobalPreference(user_id=user_id, prompt=prompt)
     db.add(preference)
     db.commit()
     db.refresh(preference)
@@ -36,7 +36,7 @@ def test_get_user_preferences_empty(db: Session):
     """Test getting preferences when user has none"""
     user = create_test_user(db)
 
-    preferences = preference_service.get_user_preferences(db, user.id)
+    preferences = global_preference_service.get_user_preferences(db, user.id)
 
     assert preferences == []
 
@@ -47,7 +47,7 @@ def test_get_user_preferences(db: Session):
     pref1 = create_test_preference(db, user.id, "Prefer direct routes")
     pref2 = create_test_preference(db, user.id, "Avoid buses")
 
-    preferences = preference_service.get_user_preferences(db, user.id)
+    preferences = global_preference_service.get_user_preferences(db, user.id)
 
     assert len(preferences) == 2
     assert preferences[0].id == pref1.id
@@ -61,7 +61,7 @@ def test_get_preference_by_id(db: Session):
     user = create_test_user(db)
     pref = create_test_preference(db, user.id, "Test preference")
 
-    result = preference_service.get_preference_by_id(db, pref.id)
+    result = global_preference_service.get_preference_by_id(db, pref.id)
 
     assert result is not None
     assert result.id == pref.id
@@ -70,7 +70,7 @@ def test_get_preference_by_id(db: Session):
 
 def test_get_preference_by_id_not_found(db: Session):
     """Test getting a non-existent preference"""
-    result = preference_service.get_preference_by_id(db, 99999)
+    result = global_preference_service.get_preference_by_id(db, 99999)
 
     assert result is None
 
@@ -78,9 +78,9 @@ def test_get_preference_by_id_not_found(db: Session):
 def test_create_preference(db: Session):
     """Test creating a new preference"""
     user = create_test_user(db)
-    preference_in = PreferenceCreate(prompt="Prefer trains over buses")
+    preference_in = GlobalPreferenceCreate(prompt="Prefer trains over buses")
 
-    preference = preference_service.create_preference(
+    preference = global_preference_service.create_preference(
         db, user.id, preference_in
     )
 
@@ -93,9 +93,9 @@ def test_create_preference(db: Session):
 def test_create_preference_strips_whitespace(db: Session):
     """Test that creating a preference strips leading/trailing whitespace"""
     user = create_test_user(db)
-    preference_in = PreferenceCreate(prompt="  Avoid crowded routes  ")
+    preference_in = GlobalPreferenceCreate(prompt="  Avoid crowded routes  ")
 
-    preference = preference_service.create_preference(
+    preference = global_preference_service.create_preference(
         db, user.id, preference_in
     )
 
@@ -105,10 +105,10 @@ def test_create_preference_strips_whitespace(db: Session):
 def test_create_preference_empty_prompt(db: Session):
     """Test creating a preference with empty prompt raises error"""
     user = create_test_user(db)
-    preference_in = PreferenceCreate(prompt="")
+    preference_in = GlobalPreferenceCreate(prompt="")
 
     with pytest.raises(HTTPException) as exc_info:
-        preference_service.create_preference(db, user.id, preference_in)
+        global_preference_service.create_preference(db, user.id, preference_in)
 
     assert exc_info.value.status_code == 400
     assert "cannot be empty" in exc_info.value.detail
@@ -117,10 +117,10 @@ def test_create_preference_empty_prompt(db: Session):
 def test_create_preference_whitespace_only_prompt(db: Session):
     """Test creating a preference with whitespace-only prompt raises error"""
     user = create_test_user(db)
-    preference_in = PreferenceCreate(prompt="   ")
+    preference_in = GlobalPreferenceCreate(prompt="   ")
 
     with pytest.raises(HTTPException) as exc_info:
-        preference_service.create_preference(db, user.id, preference_in)
+        global_preference_service.create_preference(db, user.id, preference_in)
 
     assert exc_info.value.status_code == 400
     assert "cannot be empty" in exc_info.value.detail
@@ -131,11 +131,11 @@ def test_delete_preference(db: Session):
     user = create_test_user(db)
     pref = create_test_preference(db, user.id, "Test preference")
 
-    result = preference_service.delete_preference(db, user.id, pref.id)
+    result = global_preference_service.delete_preference(db, user.id, pref.id)
 
     assert result is True
     # Verify it's deleted
-    deleted_pref = preference_service.get_preference_by_id(db, pref.id)
+    deleted_pref = global_preference_service.get_preference_by_id(db, pref.id)
     assert deleted_pref is None
 
 
@@ -144,7 +144,7 @@ def test_delete_preference_not_found(db: Session):
     user = create_test_user(db)
 
     with pytest.raises(HTTPException) as exc_info:
-        preference_service.delete_preference(db, user.id, 99999)
+        global_preference_service.delete_preference(db, user.id, 99999)
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail
@@ -164,7 +164,7 @@ def test_delete_preference_wrong_user(db: Session):
     pref = create_test_preference(db, user1.id, "User1's preference")
 
     with pytest.raises(HTTPException) as exc_info:
-        preference_service.delete_preference(db, user2.id, pref.id)
+        global_preference_service.delete_preference(db, user2.id, pref.id)
 
     assert exc_info.value.status_code == 403
     assert "Not authorized" in exc_info.value.detail

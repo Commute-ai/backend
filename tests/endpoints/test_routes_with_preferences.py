@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.preference import Preference
+from app.models.global_preference import GlobalPreference
 from app.models.user import User
 from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
@@ -179,7 +179,7 @@ def test_search_routes_with_authenticated_user_preferences(
             "app.api.v1.endpoints.routes.ai_agents_service"
         ) as mock_ai_service:
             with patch(
-                "app.api.v1.endpoints.routes.preference_service"
+                "app.api.v1.endpoints.routes.global_preference_service"
             ) as mock_pref_service:
                 mock_routing_service.get_itinaries = AsyncMock(
                     return_value=sample_itineraries
@@ -187,10 +187,10 @@ def test_search_routes_with_authenticated_user_preferences(
 
                 # Mock stored preferences for the user
                 stored_prefs = [
-                    Preference(
+                    GlobalPreference(
                         user_id=1, prompt="I prefer eco-friendly routes"
                     ),
-                    Preference(user_id=1, prompt="Avoid long walks"),
+                    GlobalPreference(user_id=1, prompt="Avoid long walks"),
                 ]
                 mock_pref_service.get_user_preferences = MagicMock(
                     return_value=stored_prefs
