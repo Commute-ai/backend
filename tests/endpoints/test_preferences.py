@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.preference import Preference
+from app.models.global_preference import GlobalPreference
 from app.models.user import User
 from app.services.auth_service import auth_service
 
@@ -26,9 +26,9 @@ def get_auth_header(user_id: int) -> dict:
 
 def create_test_preference(
     db: Session, user_id: int, prompt: str
-) -> Preference:
-    """Helper function to create a test preference"""
-    preference = Preference(user_id=user_id, prompt=prompt)
+) -> GlobalPreference:
+    """Helper function to create a test global preference"""
+    preference = GlobalPreference(user_id=user_id, prompt=prompt)
     db.add(preference)
     db.commit()
     db.refresh(preference)
