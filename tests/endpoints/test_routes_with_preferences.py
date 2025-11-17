@@ -9,7 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.preference import Preference
+from app.models.global_preference import GlobalPreference
+from app.models.route_preference import RoutePreference
 from app.models.user import User
 from app.schemas.geo import Coordinates
 from app.schemas.itinary import Itinerary, Leg, Route, TransportMode
@@ -179,7 +180,7 @@ def test_search_routes_with_authenticated_user_preferences(
             "app.api.v1.endpoints.routes.ai_agents_service"
         ) as mock_ai_service:
             with patch(
-                "app.api.v1.endpoints.routes.preference_service"
+                "app.api.v1.endpoints.routes.global_preference_service"
             ) as mock_pref_service:
                 mock_routing_service.get_itinaries = AsyncMock(
                     return_value=sample_itineraries
@@ -187,10 +188,10 @@ def test_search_routes_with_authenticated_user_preferences(
 
                 # Mock stored preferences for the user
                 stored_prefs = [
-                    Preference(
+                    GlobalPreference(
                         user_id=1, prompt="I prefer eco-friendly routes"
                     ),
-                    Preference(user_id=1, prompt="Avoid long walks"),
+                    GlobalPreference(user_id=1, prompt="Avoid long walks"),
                 ]
                 mock_pref_service.get_user_preferences = MagicMock(
                     return_value=stored_prefs
@@ -378,3 +379,421 @@ def test_search_routes_preference_service_graceful_degradation(
             assert (
                 captured_preferences[0] is None or captured_preferences[0] == []
             )
+
+
+def test_search_routes_with_route_specific_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test route search with route-specific preferences matching coordinates."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            with patch(
+                "app.api.v1.endpoints.routes.route_preference_service"
+            ) as mock_route_pref_service:
+                mock_routing_service.get_itinaries = AsyncMock(
+                    return_value=sample_itineraries
+                )
+
+                # Mock route-specific preferences matching the coordinates
+                route_prefs = [
+                    RoutePreference(
+                        user_id=1,
+                        prompt="Prefer scenic routes in this area",
+                        from_latitude=60.1699,
+                        from_longitude=24.9384,
+                        to_latitude=60.2055,
+                        to_longitude=24.6559,
+                    ),
+                ]
+                mock_route_pref_service.get_preferences_by_coordinates = (
+                    MagicMock(return_value=route_prefs)
+                )
+
+                # Track the call to verify preferences are passed
+                captured_preferences = []
+
+                def mock_get_itineraries_with_insights(
+                    itineraries, user_preferences=None
+                ):
+                    captured_preferences.append(user_preferences)
+
+                mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                    side_effect=mock_get_itineraries_with_insights
+                )
+
+                response = client.post(
+                    "/api/v1/routes/search",
+                    json={
+                        "origin": {"latitude": 60.1699, "longitude": 24.9384},
+                        "destination": {
+                            "latitude": 60.2055,
+                            "longitude": 24.6559,
+                        },
+                    },
+                    headers=headers,
+                )
+
+                assert response.status_code == 200
+                data = response.json()
+                assert len(data["itineraries"]) == 1
+
+                # Verify route preference service was called with correct coordinates
+                mock_route_pref_service.get_preferences_by_coordinates.assert_called_once_with(
+                    db, user.id, 60.1699, 24.9384, 60.2055, 24.6559
+                )
+
+                # Verify AI service was called with route-specific preferences
+                assert len(captured_preferences) == 1
+                assert {
+                    "prompt": "Prefer scenic routes in this area"
+                } in captured_preferences[0]
+
+
+def test_search_routes_with_global_and_route_specific_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test route search combining global and route-specific preferences."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            with patch(
+                "app.api.v1.endpoints.routes.global_preference_service"
+            ) as mock_global_pref_service:
+                with patch(
+                    "app.api.v1.endpoints.routes.route_preference_service"
+                ) as mock_route_pref_service:
+                    mock_routing_service.get_itinaries = AsyncMock(
+                        return_value=sample_itineraries
+                    )
+
+                    # Mock global preferences
+                    global_prefs = [
+                        GlobalPreference(
+                            user_id=1, prompt="I prefer eco-friendly routes"
+                        ),
+                    ]
+                    mock_global_pref_service.get_user_preferences = MagicMock(
+                        return_value=global_prefs
+                    )
+
+                    # Mock route-specific preferences
+                    route_prefs = [
+                        RoutePreference(
+                            user_id=1,
+                            prompt="Avoid construction on this route",
+                            from_latitude=60.1699,
+                            from_longitude=24.9384,
+                            to_latitude=60.2055,
+                            to_longitude=24.6559,
+                        ),
+                    ]
+                    mock_route_pref_service.get_preferences_by_coordinates = (
+                        MagicMock(return_value=route_prefs)
+                    )
+
+                    # Track the call to verify preferences are passed
+                    captured_preferences = []
+
+                    def mock_get_itineraries_with_insights(
+                        itineraries, user_preferences=None
+                    ):
+                        captured_preferences.append(user_preferences)
+
+                    mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                        side_effect=mock_get_itineraries_with_insights
+                    )
+
+                    response = client.post(
+                        "/api/v1/routes/search",
+                        json={
+                            "origin": {
+                                "latitude": 60.1699,
+                                "longitude": 24.9384,
+                            },
+                            "destination": {
+                                "latitude": 60.2055,
+                                "longitude": 24.6559,
+                            },
+                        },
+                        headers=headers,
+                    )
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert len(data["itineraries"]) == 1
+
+                    # Verify AI service was called with both types of preferences
+                    assert len(captured_preferences) == 1
+                    # Should include both global and route-specific preferences
+                    assert {"prompt": "I prefer eco-friendly routes"} in (
+                        captured_preferences[0]
+                    )
+                    assert {
+                        "prompt": "Avoid construction on this route"
+                    } in captured_preferences[0]
+                    assert len(captured_preferences[0]) == 2
+
+
+def test_search_routes_with_all_preference_types(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test route search combining request, global, and route-specific preferences."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            with patch(
+                "app.api.v1.endpoints.routes.global_preference_service"
+            ) as mock_global_pref_service:
+                with patch(
+                    "app.api.v1.endpoints.routes.route_preference_service"
+                ) as mock_route_pref_service:
+                    mock_routing_service.get_itinaries = AsyncMock(
+                        return_value=sample_itineraries
+                    )
+
+                    # Mock global preferences
+                    global_prefs = [
+                        GlobalPreference(
+                            user_id=1, prompt="I prefer eco-friendly routes"
+                        ),
+                    ]
+                    mock_global_pref_service.get_user_preferences = MagicMock(
+                        return_value=global_prefs
+                    )
+
+                    # Mock route-specific preferences
+                    route_prefs = [
+                        RoutePreference(
+                            user_id=1,
+                            prompt="Avoid construction on this route",
+                            from_latitude=60.1699,
+                            from_longitude=24.9384,
+                            to_latitude=60.2055,
+                            to_longitude=24.6559,
+                        ),
+                    ]
+                    mock_route_pref_service.get_preferences_by_coordinates = (
+                        MagicMock(return_value=route_prefs)
+                    )
+
+                    # Track the call to verify preferences are passed
+                    captured_preferences = []
+
+                    def mock_get_itineraries_with_insights(
+                        itineraries, user_preferences=None
+                    ):
+                        captured_preferences.append(user_preferences)
+
+                    mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                        side_effect=mock_get_itineraries_with_insights
+                    )
+
+                    response = client.post(
+                        "/api/v1/routes/search",
+                        json={
+                            "origin": {
+                                "latitude": 60.1699,
+                                "longitude": 24.9384,
+                            },
+                            "destination": {
+                                "latitude": 60.2055,
+                                "longitude": 24.6559,
+                            },
+                            "preferences": ["prefer faster routes"],
+                        },
+                        headers=headers,
+                    )
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert len(data["itineraries"]) == 1
+
+                    # Verify AI service was called with all three types of preferences
+                    assert len(captured_preferences) == 1
+                    # Should include request, global, and route-specific preferences
+                    assert {"prompt": "prefer faster routes"} in (
+                        captured_preferences[0]
+                    )
+                    assert {"prompt": "I prefer eco-friendly routes"} in (
+                        captured_preferences[0]
+                    )
+                    assert {
+                        "prompt": "Avoid construction on this route"
+                    } in captured_preferences[0]
+                    assert len(captured_preferences[0]) == 3
+
+
+def test_search_routes_with_no_matching_route_preferences(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test route search when no route preferences match the coordinates."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            with patch(
+                "app.api.v1.endpoints.routes.global_preference_service"
+            ) as mock_global_pref_service:
+                with patch(
+                    "app.api.v1.endpoints.routes.route_preference_service"
+                ) as mock_route_pref_service:
+                    mock_routing_service.get_itinaries = AsyncMock(
+                        return_value=sample_itineraries
+                    )
+
+                    # Mock global preferences
+                    global_prefs = [
+                        GlobalPreference(
+                            user_id=1, prompt="I prefer eco-friendly routes"
+                        ),
+                    ]
+                    mock_global_pref_service.get_user_preferences = MagicMock(
+                        return_value=global_prefs
+                    )
+
+                    # No route-specific preferences matching coordinates
+                    mock_route_pref_service.get_preferences_by_coordinates = (
+                        MagicMock(return_value=[])
+                    )
+
+                    # Track the call to verify preferences are passed
+                    captured_preferences = []
+
+                    def mock_get_itineraries_with_insights(
+                        itineraries, user_preferences=None
+                    ):
+                        captured_preferences.append(user_preferences)
+
+                    mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                        side_effect=mock_get_itineraries_with_insights
+                    )
+
+                    response = client.post(
+                        "/api/v1/routes/search",
+                        json={
+                            "origin": {
+                                "latitude": 60.1699,
+                                "longitude": 24.9384,
+                            },
+                            "destination": {
+                                "latitude": 60.2055,
+                                "longitude": 24.6559,
+                            },
+                        },
+                        headers=headers,
+                    )
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert len(data["itineraries"]) == 1
+
+                    # Verify AI service was called with only global preferences
+                    assert len(captured_preferences) == 1
+                    # Should only include global preferences (no route-specific)
+                    assert {"prompt": "I prefer eco-friendly routes"} in (
+                        captured_preferences[0]
+                    )
+                    assert len(captured_preferences[0]) == 1
+
+
+def test_search_routes_route_preference_service_failure(
+    db: Session, client: TestClient, sample_itineraries
+):
+    """Test graceful degradation when route preference service fails."""
+    user = create_test_user(db)
+    headers = get_auth_header(user.id)
+
+    with patch(
+        "app.api.v1.endpoints.routes.routing_service"
+    ) as mock_routing_service:
+        with patch(
+            "app.api.v1.endpoints.routes.ai_agents_service"
+        ) as mock_ai_service:
+            with patch(
+                "app.api.v1.endpoints.routes.global_preference_service"
+            ) as mock_global_pref_service:
+                with patch(
+                    "app.api.v1.endpoints.routes.route_preference_service"
+                ) as mock_route_pref_service:
+                    mock_routing_service.get_itinaries = AsyncMock(
+                        return_value=sample_itineraries
+                    )
+
+                    # Mock global preferences
+                    global_prefs = [
+                        GlobalPreference(
+                            user_id=1, prompt="I prefer eco-friendly routes"
+                        ),
+                    ]
+                    mock_global_pref_service.get_user_preferences = MagicMock(
+                        return_value=global_prefs
+                    )
+
+                    # Route preference service fails
+                    mock_route_pref_service.get_preferences_by_coordinates = (
+                        MagicMock(side_effect=Exception("Database error"))
+                    )
+
+                    # Track the call to verify preferences are passed
+                    captured_preferences = []
+
+                    def mock_get_itineraries_with_insights(
+                        itineraries, user_preferences=None
+                    ):
+                        captured_preferences.append(user_preferences)
+
+                    mock_ai_service.get_itineraries_with_insights = AsyncMock(
+                        side_effect=mock_get_itineraries_with_insights
+                    )
+
+                    response = client.post(
+                        "/api/v1/routes/search",
+                        json={
+                            "origin": {
+                                "latitude": 60.1699,
+                                "longitude": 24.9384,
+                            },
+                            "destination": {
+                                "latitude": 60.2055,
+                                "longitude": 24.6559,
+                            },
+                        },
+                        headers=headers,
+                    )
+
+                    # Should still succeed despite route preference service failure
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert len(data["itineraries"]) == 1
+
+                    # Verify AI service was called with only global preferences
+                    assert len(captured_preferences) == 1
+                    # Should still include global preferences
+                    assert {"prompt": "I prefer eco-friendly routes"} in (
+                        captured_preferences[0]
+                    )
+                    assert len(captured_preferences[0]) == 1

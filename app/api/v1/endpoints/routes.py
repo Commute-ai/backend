@@ -18,7 +18,8 @@ from app.schemas.itinary import Itinerary
 from app.schemas.routes import RouteSearchRequest, RouteSearchResponse
 from app.services.ai_agents_service import ai_agents_service
 from app.services.auth_service import auth_service
-from app.services.preference_service import preference_service
+from app.services.global_preference_service import global_preference_service
+from app.services.route_preference_service import route_preference_service
 from app.services.routing_service import (
     RoutingAPIError,
     RoutingDataError,
@@ -76,15 +77,30 @@ async def search_routes(
         for pref in request.preferences:
             user_preferences.append({"prompt": pref})
 
-    # 2. Add stored preferences from authenticated user
+    # 2. Add stored global preferences from authenticated user
     try:
-        stored_prefs = preference_service.get_user_preferences(
+        global_prefs = global_preference_service.get_user_preferences(
             db, int(current_user.id)
         )
-        for pref in stored_prefs:
+        for pref in global_prefs:
             user_preferences.append({"prompt": pref.prompt})
     except Exception as e:  # pylint: disable=broad-except
-        logger.warning("Failed to fetch user preferences: %s", str(e))
+        logger.warning("Failed to fetch global preferences: %s", str(e))
+
+    # 3. Add route-specific preferences that match the coordinates
+    try:
+        route_prefs = route_preference_service.get_preferences_by_coordinates(
+            db,
+            int(current_user.id),
+            request.origin.latitude,
+            request.origin.longitude,
+            request.destination.latitude,
+            request.destination.longitude,
+        )
+        for pref in route_prefs:
+            user_preferences.append({"prompt": pref.prompt})
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("Failed to fetch route-specific preferences: %s", str(e))
 
     logger.info(
         "Using %d user preferences for route insights", len(user_preferences)

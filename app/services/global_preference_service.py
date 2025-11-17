@@ -1,5 +1,5 @@
 """
-Preference service for handling preference-related business logic.
+Global preference service for handling global preference-related business logic.
 """
 
 from typing import List, Optional
@@ -7,51 +7,59 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.preference import Preference
-from app.schemas.preference import PreferenceCreate
+from app.models.global_preference import GlobalPreference
+from app.schemas.global_preference import GlobalPreferenceCreate
 
 
-class PreferenceService:
-    """Service for handling preference operations."""
+class GlobalPreferenceService:
+    """Service for handling global preference operations."""
 
     @staticmethod
-    def get_user_preferences(db: Session, user_id: int) -> List[Preference]:
+    def get_user_preferences(
+        db: Session, user_id: int
+    ) -> List[GlobalPreference]:
         """
-        Get all preferences for a user.
+        Get all global preferences for a user.
 
         Args:
             db: Database session
             user_id: User ID to get preferences for
 
         Returns:
-            List of Preference objects
+            List of GlobalPreference objects
         """
-        return db.query(Preference).filter(Preference.user_id == user_id).all()
+        return (
+            db.query(GlobalPreference)
+            .filter(GlobalPreference.user_id == user_id)
+            .all()
+        )
 
     @staticmethod
     def get_preference_by_id(
         db: Session, preference_id: int
-    ) -> Optional[Preference]:
+    ) -> Optional[GlobalPreference]:
         """
-        Get a preference by ID.
+        Get a global preference by ID.
 
         Args:
             db: Database session
             preference_id: Preference ID to search for
 
         Returns:
-            Preference object if found, None otherwise
+            GlobalPreference object if found, None otherwise
         """
         return (
-            db.query(Preference).filter(Preference.id == preference_id).first()
+            db.query(GlobalPreference)
+            .filter(GlobalPreference.id == preference_id)
+            .first()
         )
 
     @staticmethod
     def create_preference(
-        db: Session, user_id: int, preference_in: PreferenceCreate
-    ) -> Preference:
+        db: Session, user_id: int, preference_in: GlobalPreferenceCreate
+    ) -> GlobalPreference:
         """
-        Create a new preference for a user.
+        Create a new global preference for a user.
 
         Args:
             db: Database session
@@ -59,7 +67,7 @@ class PreferenceService:
             preference_in: Preference creation data
 
         Returns:
-            Created Preference object
+            Created GlobalPreference object
 
         Raises:
             HTTPException: If validation fails
@@ -72,7 +80,7 @@ class PreferenceService:
             )
 
         # Create preference
-        preference = Preference(
+        preference = GlobalPreference(
             user_id=user_id,
             prompt=preference_in.prompt.strip(),
         )
@@ -87,7 +95,7 @@ class PreferenceService:
         db: Session, user_id: int, preference_id: int
     ) -> bool:
         """
-        Delete a preference for a user.
+        Delete a global preference for a user.
 
         Args:
             db: Database session
@@ -101,7 +109,9 @@ class PreferenceService:
             HTTPException: If preference not found or doesn't belong to user
         """
         preference = (
-            db.query(Preference).filter(Preference.id == preference_id).first()
+            db.query(GlobalPreference)
+            .filter(GlobalPreference.id == preference_id)
+            .first()
         )
 
         if not preference:
@@ -124,4 +134,4 @@ class PreferenceService:
 
 
 # Create a singleton instance
-preference_service = PreferenceService()
+global_preference_service = GlobalPreferenceService()
